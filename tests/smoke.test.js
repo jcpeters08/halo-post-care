@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { getDefaultGuidance } from '../js/assessment.js';
 import { buildDailyTargets, getStageForDay, getTimelineForDay } from '../js/day.js';
 import {
+  findCompletedCheckinPathForDate,
   loadAppliedAssessment,
   loadDailyState
 } from '../js/app.js';
@@ -136,6 +137,72 @@ describe('project shell', () => {
 
     assert.equal(prepareState.disabled, false);
     assert.equal(prepareState.reason, 'ready');
+  });
+});
+
+describe('Task 8 repo-backed duplicate detection', () => {
+  it('returns the completed check-in path for a day when complete.json exists', async () => {
+    const calls = [];
+    const client = {
+      async listDirectory(path) {
+        calls.push(path);
+
+        if (path === 'checkins/2026-06-27') {
+          return [
+            { type: 'dir', name: '0915', path: 'checkins/2026-06-27/0915' },
+            { type: 'dir', name: '2030', path: 'checkins/2026-06-27/2030' }
+          ];
+        }
+
+        if (path === 'checkins/2026-06-27/0915') {
+          return [{ type: 'file', name: 'manifest.json', path: `${path}/manifest.json` }];
+        }
+
+        if (path === 'checkins/2026-06-27/2030') {
+          return [{ type: 'file', name: 'complete.json', path: `${path}/complete.json` }];
+        }
+
+        throw new Error(`Unexpected path: ${path}`);
+      }
+    };
+
+    const result = await findCompletedCheckinPathForDate(client, '2026-06-27');
+
+    assert.equal(result, 'checkins/2026-06-27/2030');
+    assert.deepEqual(calls, [
+      'checkins/2026-06-27',
+      'checkins/2026-06-27/0915',
+      'checkins/2026-06-27/2030'
+    ]);
+  });
+
+  it('treats a missing date directory as no existing completed check-in', async () => {
+    const error = new Error('404: Not Found');
+    error.status = 404;
+    const client = {
+      async listDirectory() {
+        throw error;
+      }
+    };
+
+    const result = await findCompletedCheckinPathForDate(client, '2026-06-27');
+
+    assert.equal(result, null);
+  });
+
+  it('rethrows non-404 GitHub errors during duplicate detection', async () => {
+    const error = new Error('503: Service Unavailable');
+    error.status = 503;
+    const client = {
+      async listDirectory() {
+        throw error;
+      }
+    };
+
+    await assert.rejects(
+      () => findCompletedCheckinPathForDate(client, '2026-06-27'),
+      /503: Service Unavailable/
+    );
   });
 });
 

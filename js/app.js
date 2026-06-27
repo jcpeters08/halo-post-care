@@ -255,6 +255,42 @@ function updateSyncStatusText(value) {
   }
 }
 
+function getDirectoryEntryPath(entry, fallbackPath) {
+  return entry?.path || fallbackPath;
+}
+
+function isDirectoryEntry(entry) {
+  return entry?.type === 'dir';
+}
+
+function isFileEntry(entry, fileName) {
+  return entry?.type === 'file' && entry?.name === fileName;
+}
+
+export async function findCompletedCheckinPathForDate(client, todayIso) {
+  const datePath = `checkins/${todayIso}`;
+  let dateEntries;
+
+  try {
+    dateEntries = await client.listDirectory(datePath);
+  } catch (error) {
+    if (error?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+
+  for (const entry of dateEntries.filter(isDirectoryEntry)) {
+    const checkinPath = getDirectoryEntryPath(entry, `${datePath}/${entry?.name || ''}`);
+    const checkinEntries = await client.listDirectory(checkinPath);
+    if (checkinEntries.some((checkinEntry) => isFileEntry(checkinEntry, 'complete.json'))) {
+      return checkinPath;
+    }
+  }
+
+  return null;
+}
+
 function encodeBytesToBase64(bytes) {
   if (typeof btoa === 'function') {
     let binary = '';
@@ -590,6 +626,35 @@ async function prepareCheckin() {
     return;
   }
 
+  let client;
+  try {
+    client = createGitHubClient(context.settings);
+    const existingCompletedPath = await findCompletedCheckinPathForDate(client, context.todayIso);
+
+    if (existingCompletedPath) {
+      saveCheckinDraft(window.localStorage, context.todayIso, {
+        ...storedDraft,
+        syncStatus: 'uploaded',
+        uploadedCheckinPath: existingCompletedPath,
+        errorMessage: ''
+      });
+      render('log');
+      return;
+    }
+  } catch (error) {
+    const message = error instanceof GitHubSettingsError
+      ? error.message
+      : `Could not verify whether today's check-in already exists. ${error.message || 'Try again.'}`;
+
+    saveCheckinDraft(window.localStorage, context.todayIso, {
+      ...storedDraft,
+      syncStatus: 'upload_failed',
+      errorMessage: message
+    });
+    render('log');
+    return;
+  }
+
   saveCheckinDraft(window.localStorage, context.todayIso, {
     ...storedDraft,
     syncStatus: 'uploading',
@@ -623,7 +688,6 @@ async function prepareCheckin() {
   );
 
   try {
-    const client = createGitHubClient(context.settings);
     await client.uploadCheckin({
       path: checkinPath,
       files: photoFiles,
