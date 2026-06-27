@@ -22,11 +22,12 @@
       </header>
       <main id="app" class="app-main" tabindex="-1"></main>
       <p id="sync-status" class="sync-status" aria-live="polite">Ready</p>
+      <p class="app-disclaimer">Clinic instructions and your provider override this app.</p>
       <nav class="tab-nav" aria-label="Primary">
-        <button class="tab-button is-active" type="button" data-route="today">Today</button>
-        <button class="tab-button" type="button" data-route="log">Log</button>
-        <button class="tab-button" type="button" data-route="guide">Guide</button>
-        <button class="tab-button" type="button" data-route="settings">Settings</button>
+        <button class="tab-button is-active" type="button" data-action="route" data-route="today">Today</button>
+        <button class="tab-button" type="button" data-action="route" data-route="log">Log</button>
+        <button class="tab-button" type="button" data-action="route" data-route="guide">Guide</button>
+        <button class="tab-button" type="button" data-action="route" data-route="settings">Settings</button>
       </nav>
     </div>
     <script type="module" src="js/app.js"></script>

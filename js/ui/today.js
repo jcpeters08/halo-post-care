@@ -1,0 +1,124 @@
+import { getCompletionSummary } from '../checklist.js';
+import { escapeHtml, renderGuidanceCards, renderSafetyPanel } from './components.js';
+
+function renderRoutine(period, items, state, summary) {
+  const rows = items
+    .map((item) => {
+      const complete = Boolean(state[item.id]);
+      return `
+        <button
+          class="checklist-row${complete ? ' is-complete' : ''}"
+          type="button"
+          data-action="toggle-step"
+          data-period="${period}"
+          data-step-id="${escapeHtml(item.id)}"
+        >
+          <span class="checklist-row__state" aria-hidden="true">${complete ? 'Done' : 'Tap'}</span>
+          <span class="checklist-row__copy">
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${escapeHtml(item.details)}</span>
+          </span>
+        </button>
+      `;
+    })
+    .join('');
+
+  return `
+    <section class="panel stack-md">
+      <div class="section-row">
+        <div class="stack-xxs">
+          <p class="section-label">${period.toUpperCase()}</p>
+          <h2 class="section-title">${period === 'am' ? 'Morning routine' : 'Evening routine'}</h2>
+        </div>
+        <p class="progress-chip">${summary.completed}/${summary.total}</p>
+      </div>
+      <div class="stack-sm">${rows}</div>
+    </section>
+  `;
+}
+
+function renderCounters(counters, values) {
+  const rows = Object.entries(counters)
+    .filter(([, spec]) => spec.target > 0)
+    .map(([counterId, spec]) => `
+      <div class="counter-row">
+        <div class="stack-xxs">
+          <strong>${escapeHtml(spec.label)}</strong>
+          <span class="meta-text">Target ${spec.target}</span>
+        </div>
+        <div class="counter-controls">
+          <button type="button" class="icon-button" data-action="counter-dec" data-counter-id="${escapeHtml(counterId)}" aria-label="Decrease ${escapeHtml(spec.label)}">-</button>
+          <span class="counter-value">${values[counterId] ?? 0}</span>
+          <button type="button" class="icon-button" data-action="counter-inc" data-counter-id="${escapeHtml(counterId)}" aria-label="Increase ${escapeHtml(spec.label)}">+</button>
+        </div>
+      </div>
+    `)
+    .join('');
+
+  return `
+    <section class="panel stack-md">
+      <div class="stack-xs">
+        <p class="section-label">Counters</p>
+        <h2 class="section-title">Keep the repeatables on pace</h2>
+      </div>
+      <div class="stack-sm">${rows}</div>
+    </section>
+  `;
+}
+
+function renderFlags(flags, values) {
+  const rows = Object.entries(flags)
+    .map(([flagId, spec]) => {
+      const enabled = Boolean(values[flagId]);
+      return `
+        <button
+          class="flag-row${enabled ? ' is-on' : ''}"
+          type="button"
+          data-action="set-flag"
+          data-flag-id="${escapeHtml(flagId)}"
+          aria-pressed="${enabled ? 'true' : 'false'}"
+        >
+          <span>${escapeHtml(spec.label)}</span>
+          <span class="flag-row__value">${enabled ? 'Yes' : 'No'}</span>
+        </button>
+      `;
+    })
+    .join('');
+
+  return `
+    <section class="panel stack-md">
+      <div class="stack-xs">
+        <p class="section-label">Flags</p>
+        <h2 class="section-title">Quick confirmations</h2>
+      </div>
+      <div class="stack-sm">${rows}</div>
+    </section>
+  `;
+}
+
+export function renderToday(root, context) {
+  const summary = getCompletionSummary(context.state, context.targets);
+
+  root.innerHTML = `
+    <div class="stack-lg">
+      <section class="hero-panel">
+        <div class="hero-panel__top">
+          <div class="stack-xs">
+            <p class="eyebrow">Recovery day ${context.recoveryDay}</p>
+            <h2>${escapeHtml(context.stage.title)}</h2>
+          </div>
+          <p class="stage-badge">${escapeHtml(context.timeline.title)}</p>
+        </div>
+        <p class="hero-summary">${escapeHtml(context.stage.summary)}</p>
+        <p class="body-copy">${escapeHtml(context.timeline.keyTakeaway)}</p>
+      </section>
+
+      ${renderRoutine('am', context.targets.am, context.state.am, summary.am)}
+      ${renderRoutine('pm', context.targets.pm, context.state.pm, summary.pm)}
+      ${renderCounters(context.targets.counters, context.state.counters)}
+      ${renderFlags(context.targets.flags, context.state.flags)}
+      ${renderSafetyPanel()}
+      ${renderGuidanceCards(context.guidance, context.provenance)}
+    </div>
+  `;
+}
