@@ -1,7 +1,7 @@
 # Halo Post-Care Closed-Loop Design
 
 Date: 2026-06-27
-Status: Design approved; written spec pending user review before implementation planning
+Status: Approved for implementation planning
 
 ## Purpose
 
