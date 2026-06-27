@@ -176,6 +176,41 @@ describe('project shell', () => {
     assert.match(root.innerHTML, /Last Codex assessment file: checkins\/2026-06-27\/2030\/assessment\.json/);
   });
 
+  it('renders urgent Codex safety assessment before ordinary guidance on Today', async () => {
+    const { renderToday } = await import('../js/ui/today.js');
+    const root = { innerHTML: '' };
+    const targets = buildDailyTargets(1, 2);
+
+    renderToday(root, {
+      todayIso: '2026-06-27',
+      recoveryDay: 1,
+      stage: getStageForDay(1),
+      timeline: getTimelineForDay(1),
+      targets,
+      state: {
+        am: { cleanse: false, thermal_water: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        counters: { hocl: 0, cicalfate: 0, spf: 0, acyclovir: 0, heliocare: 0 },
+        flags: { elevated: false, coldCompress: false }
+      },
+      guidance: getDefaultGuidance(),
+      provenance: 'Codex assessment from 2026-06-27',
+      assessment: {
+        safety: {
+          callClinic: true,
+          urgency: 'urgent',
+          reasons: ['Increasing heat and swelling', 'Pain spreading beyond treated area']
+        }
+      }
+    });
+
+    assert.match(root.innerHTML, /Codex safety alert/);
+    assert.match(root.innerHTML, /Urgent/);
+    assert.match(root.innerHTML, /Increasing heat and swelling/);
+    assert.match(root.innerHTML, /Pain spreading beyond treated area/);
+    assert.ok(root.innerHTML.indexOf('Codex safety alert') < root.innerHTML.indexOf('Codex guidance'));
+  });
+
   it('disables all settings actions while a settings operation is in flight', async () => {
     const { renderSettings } = await import('../js/ui/settings.js');
     const root = { innerHTML: '' };
@@ -198,6 +233,26 @@ describe('project shell', () => {
     assert.match(root.innerHTML, /data-action="sync-assessment"[\s\S]*disabled/);
     assert.match(root.innerHTML, /data-action="export-data"[\s\S]*disabled/);
     assert.match(root.innerHTML, /data-action="reset-data"[\s\S]*disabled/);
+  });
+
+  it('keeps the save button label accurate during unrelated settings operations', async () => {
+    const { renderSettings } = await import('../js/ui/settings.js');
+    const root = { innerHTML: '' };
+
+    renderSettings(root, {
+      settings: {
+        procedureDate: '',
+        acyclovirPerDay: 2,
+        githubOwner: 'jcpeters08',
+        dataRepo: 'halo-post-care-data',
+        token: '',
+        lastAssessmentPath: ''
+      },
+      busyAction: 'sync-assessment'
+    });
+
+    assert.match(root.innerHTML, /data-action="save-settings"[\s\S]*Save settings/);
+    assert.doesNotMatch(root.innerHTML, /Saving\.\.\./);
   });
 });
 

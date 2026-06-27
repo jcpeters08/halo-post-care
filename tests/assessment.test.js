@@ -46,6 +46,23 @@ describe('assessment contract', () => {
     assert.equal(selectLatestValidAssessment([older, newer]).assessmentDate, '2026-06-28');
   });
 
+  it('ignores assessments whose checkinPath does not match their assessment file folder', () => {
+    const stale = {
+      ...validAssessment,
+      assessmentDate: '2026-06-29',
+      checkinPath: 'checkins/2026-06-26/0915',
+      assessmentPath: 'checkins/2026-06-29/2030/assessment.json'
+    };
+    const applicable = {
+      ...validAssessment,
+      assessmentDate: '2026-06-28',
+      checkinPath: 'checkins/2026-06-28/2030',
+      assessmentPath: 'checkins/2026-06-28/2030/assessment.json'
+    };
+
+    assert.equal(selectLatestValidAssessment([stale, applicable]).checkinPath, applicable.checkinPath);
+  });
+
   it('provides all default guidance groups', () => {
     const default1 = getDefaultGuidance();
     const default2 = getDefaultGuidance();
@@ -70,6 +87,21 @@ describe('assessment contract', () => {
   it('rejects invalid safety urgency values', () => {
     const invalid = structuredClone(validAssessment);
     invalid.safety.urgency = 'soon';
+    assert.equal(validateAssessment(invalid).valid, false);
+  });
+
+  it('rejects invalid guidance status values', () => {
+    const invalid = structuredClone(validAssessment);
+    invalid.guidance.exercise.status = 'resume';
+    assert.equal(validateAssessment(invalid).valid, false);
+  });
+
+  it('rejects invalid observation area and severity values', () => {
+    const invalid = structuredClone(validAssessment);
+    invalid.observations = [
+      { area: 'torso', severity: 'expected', note: 'Wrong area.' },
+      { area: 'face', severity: 'severe', note: 'Wrong severity.' }
+    ];
     assert.equal(validateAssessment(invalid).valid, false);
   });
 });

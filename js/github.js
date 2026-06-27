@@ -181,7 +181,24 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
     return putFileBase64(path, encodeBase64(content), message);
   }
 
-  async function putFileBase64(path, base64Content, message) {
+  async function getExistingFileSha(path) {
+    try {
+      const payload = await request(fetchImpl, {
+        url: buildContentsUrl(githubOwner, dataRepo, path),
+        options: { headers }
+      });
+
+      return typeof payload?.sha === 'string' ? payload.sha : '';
+    } catch (error) {
+      if (error?.status === 404) {
+        return '';
+      }
+      throw error;
+    }
+  }
+
+  async function putFileBase64(path, base64Content, message, options = {}) {
+    const sha = options.allowUpdate ? await getExistingFileSha(path) : '';
     await request(fetchImpl, {
       url: buildContentsUrl(githubOwner, dataRepo, path),
       options: {
@@ -189,10 +206,19 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
         headers,
         body: JSON.stringify({
           message,
-          content: base64Content
+          content: base64Content,
+          ...(sha ? { sha } : {})
         })
       }
     });
+  }
+
+  async function putUploadFile(path, content, message) {
+    return putFileBase64(path, encodeBase64(content), message, { allowUpdate: true });
+  }
+
+  async function putUploadFileBase64(path, base64Content, message) {
+    return putFileBase64(path, base64Content, message, { allowUpdate: true });
   }
 
   async function testConnection() {
@@ -213,14 +239,14 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
     summary,
     complete
   }) {
-    await putFile(`${path}/summary.md`, `${summary ?? ''}`, 'Add summary');
-    await putFile(`${path}/manifest.json`, JSON.stringify(manifest ?? {}, null, 2), 'Add manifest');
+    await putUploadFile(`${path}/summary.md`, `${summary ?? ''}`, 'Add summary');
+    await putUploadFile(`${path}/manifest.json`, JSON.stringify(manifest ?? {}, null, 2), 'Add manifest');
 
     for (const [fileName, fileContent] of Object.entries(files ?? {})) {
-      await putFileBase64(`${path}/${fileName}`, `${fileContent}`, `Add ${fileName}`);
+      await putUploadFileBase64(`${path}/${fileName}`, `${fileContent}`, `Add ${fileName}`);
     }
 
-    await putFile(`${path}/complete.json`, JSON.stringify(complete ?? {}, null, 2), 'Add complete marker');
+    await putUploadFile(`${path}/complete.json`, JSON.stringify(complete ?? {}, null, 2), 'Add complete marker');
   }
 
   async function findAssessmentFiles() {

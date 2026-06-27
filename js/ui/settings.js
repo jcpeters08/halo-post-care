@@ -113,7 +113,7 @@ export function renderSettings(root, viewModel) {
               type="button"
               data-action="save-settings"
               ${disableSave ? 'disabled' : ''}
-            >${disableSave ? 'Saving...' : 'Save settings'}</button>
+            >${busyAction === 'save-settings' ? 'Saving...' : 'Save settings'}</button>
           </div>
         </form>
       </section>
@@ -132,7 +132,7 @@ export function renderSettings(root, viewModel) {
             type="button"
             data-action="test-connection"
             ${disableConnection ? 'disabled' : ''}
-          >${disableConnection ? 'Testing...' : 'Test connection'}</button>
+          >${busyAction === 'test-connection' ? 'Testing...' : 'Test connection'}</button>
           <button
             class="button-secondary"
             type="button"
@@ -159,13 +159,13 @@ export function renderSettings(root, viewModel) {
             type="button"
             data-action="export-data"
             ${disableExport ? 'disabled' : ''}
-          >${disableExport ? 'Exporting...' : 'Export data'}</button>
+          >${busyAction === 'export-data' ? 'Exporting...' : 'Export data'}</button>
           <button
             class="button-danger"
             type="button"
             data-action="reset-data"
             ${disableReset ? 'disabled' : ''}
-          >${disableReset ? 'Resetting...' : resetConfirming ? 'Tap again to confirm reset' : 'Reset data'}</button>
+          >${busyAction === 'reset-data' ? 'Resetting...' : resetConfirming ? 'Tap again to confirm reset' : 'Reset data'}</button>
         </div>
         ${renderStatusNote(dataMessage, dataTone)}
       </section>

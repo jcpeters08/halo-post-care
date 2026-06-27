@@ -160,6 +160,34 @@ function installFakeIndexedDb({
   };
 }
 
+function installPersistentStorageStub() {
+  const previousDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const calls = { persist: 0 };
+
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      storage: {
+        async persist() {
+          calls.persist += 1;
+          return true;
+        }
+      }
+    }
+  });
+
+  return {
+    calls,
+    restore() {
+      if (previousDescriptor) {
+        Object.defineProperty(globalThis, 'navigator', previousDescriptor);
+      } else {
+        delete globalThis.navigator;
+      }
+    }
+  };
+}
+
 describe('photo draft helpers', () => {
   it('declares the required photo areas', () => {
     assert.deepEqual(PHOTO_AREAS, ['face', 'neck', 'hands']);
@@ -214,6 +242,22 @@ describe('photo draft helpers', () => {
       assert.equal(fakeForDelete.closeCount.value, 1);
     } finally {
       fakeForDelete.restore();
+    }
+  });
+
+  it('requests persistent storage before saving the first photo draft', async () => {
+    const persistence = installPersistentStorageStub();
+    const fakeForSave = installFakeIndexedDb();
+    const { savePhotoDraft: freshSavePhotoDraft } = await import(`../js/photos.js?persistent-storage-${Date.now()}`);
+
+    try {
+      await freshSavePhotoDraft({ id: '2026-06-27:face', date: '2026-06-27', area: 'face' });
+      await freshSavePhotoDraft({ id: '2026-06-27:neck', date: '2026-06-27', area: 'neck' });
+
+      assert.equal(persistence.calls.persist, 1);
+    } finally {
+      fakeForSave.restore();
+      persistence.restore();
     }
   });
 

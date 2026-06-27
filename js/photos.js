@@ -1,8 +1,11 @@
+import { requestPersistentStorage } from './storage.js';
+
 export const PHOTO_AREAS = ['face', 'neck', 'hands'];
 
 const PHOTO_DB_NAME = 'halo-post-care-db';
 const PHOTO_DB_VERSION = 1;
 const PHOTO_DRAFT_STORE = 'photoDrafts';
+let persistentStorageRequested = false;
 
 function ensureIndexedDbAvailable() {
   if (typeof indexedDB === 'undefined' || indexedDB === null) {
@@ -21,6 +24,15 @@ function closeDbConnection(db) {
   if (db && typeof db.close === 'function') {
     db.close();
   }
+}
+
+async function ensurePersistentPhotoStorage() {
+  if (persistentStorageRequested) {
+    return;
+  }
+
+  persistentStorageRequested = true;
+  await requestPersistentStorage();
 }
 
 function withPhotoDb(action) {
@@ -88,7 +100,8 @@ export function openPhotoDb() {
   });
 }
 
-export function savePhotoDraft(draft) {
+export async function savePhotoDraft(draft) {
+  await ensurePersistentPhotoStorage();
   ensureIndexedDbAvailable();
   return withPhotoDb((db) => new Promise((resolve, reject) => {
     try {

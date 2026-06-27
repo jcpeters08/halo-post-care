@@ -97,6 +97,39 @@ function renderFlags(flags, values) {
   `;
 }
 
+function formatUrgency(value) {
+  return `${value || 'call_clinic'}`
+    .replaceAll('_', ' ')
+    .replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function renderCodexSafetyAlert(assessment) {
+  const safety = assessment?.safety;
+  const urgency = typeof safety?.urgency === 'string' ? safety.urgency : '';
+  const shouldShowAlert = safety?.callClinic === true || ['call_clinic', 'urgent'].includes(urgency);
+
+  if (!shouldShowAlert) {
+    return '';
+  }
+
+  const reasons = Array.isArray(safety.reasons)
+    ? safety.reasons.filter((reason) => typeof reason === 'string' && reason.trim())
+    : [];
+  const reasonRows = reasons.length > 0
+    ? reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')
+    : '<li>Clinic follow-up recommended by Codex assessment.</li>';
+
+  return `
+    <section class="panel stack-md codex-safety-alert is-call" aria-labelledby="codex-safety-title">
+      <div class="stack-xs">
+        <p class="section-label">Codex safety alert</p>
+        <h2 id="codex-safety-title" class="section-title">${escapeHtml(formatUrgency(urgency))}</h2>
+      </div>
+      <ul class="bullet-list">${reasonRows}</ul>
+    </section>
+  `;
+}
+
 export function renderToday(root, context) {
   const summary = getCompletionSummary(context.state, context.targets);
 
@@ -118,6 +151,7 @@ export function renderToday(root, context) {
       ${renderRoutine('pm', context.targets.pm, context.state.pm, summary.pm)}
       ${renderCounters(context.targets.counters, context.state.counters)}
       ${renderFlags(context.targets.flags, context.state.flags)}
+      ${renderCodexSafetyAlert(context.assessment)}
       ${renderSafetyPanel()}
       ${renderGuidanceCards(context.guidance, context.provenance)}
     </div>

@@ -101,7 +101,16 @@ describe('GitHub client', () => {
     const calls = [];
     const fetchImpl = async (url, options) => {
       const path = decodeURIComponent(url.split('/contents/')[1]);
-      calls.push({ path, body: JSON.parse(options.body) });
+      const method = options.method ?? 'GET';
+      calls.push({ path, method, body: options.body ? JSON.parse(options.body) : null });
+      if (method === 'GET') {
+        return {
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          json: async () => ({ message: 'Not Found' })
+        };
+      }
       return { ok: true, json: async () => ({}) };
     };
     const client = createGitHubClient(settings, fetchImpl);
@@ -114,8 +123,57 @@ describe('GitHub client', () => {
       complete: { checkinPath: 'checkins/2026-06-27/2030', completedAt: '2026-06-27T20:31:00-05:00' }
     });
 
-    const photoCall = calls.find(({ path }) => path === 'checkins/2026-06-27/2030/face.jpg');
+    const photoCall = calls.find(({ path, method }) => path === 'checkins/2026-06-27/2030/face.jpg' && method === 'PUT');
     assert.ok(!!photoCall);
     assert.equal(photoCall.body.content, photoContent);
+  });
+
+  it('updates an existing retry summary with its Contents API sha', async () => {
+    const existingSummaryPath = 'checkins/2026-06-27/2030/summary.md';
+    const calls = [];
+    const fetchImpl = async (url, options = {}) => {
+      const path = decodeURIComponent(url.split('/contents/')[1]);
+      const method = options.method ?? 'GET';
+      calls.push({ path, method, body: options.body ? JSON.parse(options.body) : null });
+
+      if (method === 'GET' && path === existingSummaryPath) {
+        return {
+          ok: true,
+          json: async () => ({ sha: 'summary-sha', content: encodeBase64('partial stale summary') })
+        };
+      }
+
+      if (method === 'GET') {
+        return {
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          json: async () => ({ message: 'Not Found' })
+        };
+      }
+
+      if (method === 'PUT' && path === existingSummaryPath && calls.at(-1).body.sha !== 'summary-sha') {
+        return {
+          ok: false,
+          status: 422,
+          statusText: 'Unprocessable Entity',
+          json: async () => ({ message: 'sha was not supplied' })
+        };
+      }
+
+      return { ok: true, json: async () => ({ content: { path } }) };
+    };
+    const client = createGitHubClient(settings, fetchImpl);
+
+    await client.uploadCheckin({
+      path: 'checkins/2026-06-27/2030',
+      files: { 'face.jpg': 'base64-photo' },
+      manifest: { checkinPath: 'checkins/2026-06-27/2030' },
+      summary: '# Summary',
+      complete: { checkinPath: 'checkins/2026-06-27/2030', completedAt: '2026-06-27T20:31:00-05:00' }
+    });
+
+    const summaryPut = calls.find(({ path, method }) => path === existingSummaryPath && method === 'PUT');
+    assert.equal(summaryPut.body.sha, 'summary-sha');
   });
 });

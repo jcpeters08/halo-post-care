@@ -6,6 +6,9 @@ const ASSESSMENT_SCHEMA_VERSION = 1;
 const OVERALL_STATUSES = new Set(['on_track', 'watch', 'concern', 'call_clinic']);
 const OVERALL_CONFIDENCE = new Set(['low', 'medium', 'high']);
 const URGENCY_VALUES = new Set(['routine', 'monitor', 'call_clinic', 'urgent']);
+const GUIDANCE_STATUSES = new Set(['wait', 'limited', 'ready', 'avoid', 'ask_provider']);
+const OBSERVATION_AREAS = new Set(['face', 'neck', 'hands', 'overall']);
+const OBSERVATION_SEVERITIES = new Set(['expected', 'watch', 'concern']);
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isPlainObject(value) {
@@ -60,12 +63,45 @@ function validateGuidance(value) {
       return false;
     }
 
-    if (!hasString(entry.status) || !hasString(entry.title) || !hasString(entry.details) || !hasString(entry.reviewAfter)) {
+    if (!GUIDANCE_STATUSES.has(entry.status) || !hasString(entry.title) || !hasString(entry.details) || !hasString(entry.reviewAfter)) {
       return false;
     }
   }
 
   return true;
+}
+
+function validateObservations(value) {
+  if (value === undefined) {
+    return true;
+  }
+
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((entry) => (
+    isPlainObject(entry) &&
+    OBSERVATION_AREAS.has(entry.area) &&
+    OBSERVATION_SEVERITIES.has(entry.severity) &&
+    hasStringOrUndefined(entry.note)
+  ));
+}
+
+function getExpectedCheckinPath(assessmentPath) {
+  if (typeof assessmentPath !== 'string' || !assessmentPath.endsWith('/assessment.json')) {
+    return '';
+  }
+
+  return assessmentPath.slice(0, -'/assessment.json'.length);
+}
+
+function isAssessmentCandidateApplicable(entry) {
+  if (typeof entry?.assessmentPath !== 'string') {
+    return true;
+  }
+
+  return isAssessmentApplicable(entry, getExpectedCheckinPath(entry.assessmentPath));
 }
 
 export function validateAssessment(value) {
@@ -109,6 +145,10 @@ export function validateAssessment(value) {
     errors.push('guidance must include required groups');
   }
 
+  if (!validateObservations(value.observations)) {
+    errors.push('observations are invalid');
+  }
+
   if (!isPlainObject(value.safety) || typeof value.safety.callClinic !== 'boolean') {
     errors.push('safety.callClinic must be boolean');
   } else if (!URGENCY_VALUES.has(value.safety.urgency)) {
@@ -137,7 +177,7 @@ export function selectLatestValidAssessment(entries) {
 
   const validated = entries.filter((entry) => {
     const result = validateAssessment(entry);
-    return result.valid;
+    return result.valid && isAssessmentCandidateApplicable(entry);
   });
 
   if (validated.length === 0) {
