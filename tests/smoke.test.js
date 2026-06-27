@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { getDefaultGuidance } from '../js/assessment.js';
 import { buildDailyTargets, getStageForDay, getTimelineForDay } from '../js/day.js';
 import {
+  buildBlockedReservationDraft,
   findCompletedCheckinPathForDate,
   loadAppliedAssessment,
   loadDailyState,
@@ -290,6 +291,43 @@ describe('Task 8 repo-backed duplicate detection', () => {
     });
   });
 
+  it('treats a claimed path with complete.json as a completed upload', async () => {
+    const client = {
+      async getJson(path) {
+        assert.equal(path, 'checkins/2026-06-27/daily-claim.json');
+        return {
+          schemaVersion: 1,
+          date: '2026-06-27',
+          checkinPath: 'checkins/2026-06-27/0915',
+          claimedAt: '2026-06-27T09:15:00-05:00'
+        };
+      },
+      async putFile() {
+        throw new Error('putFile should not be called when a claim already exists');
+      },
+      async listDirectory(path) {
+        assert.equal(path, 'checkins/2026-06-27/0915');
+        return [{ type: 'file', name: 'complete.json', path: `${path}/complete.json` }];
+      }
+    };
+
+    const result = await reserveCheckinDay({
+      client,
+      todayIso: '2026-06-27',
+      proposedCheckinPath: 'checkins/2026-06-27/2030',
+      claimedAt: '2026-06-27T20:30:00-05:00',
+      syncStatus: 'ready',
+      claimedCheckinPath: ''
+    });
+
+    assert.deepEqual(result, {
+      status: 'blocked',
+      checkinPath: 'checkins/2026-06-27/0915',
+      claimedCheckinPath: 'checkins/2026-06-27/0915',
+      reason: 'completed'
+    });
+  });
+
   it('reuses the same claimed path after upload_failed without re-claiming', async () => {
     let putAttempts = 0;
     const client = {
@@ -327,6 +365,49 @@ describe('Task 8 repo-backed duplicate detection', () => {
       claimedCheckinPath: 'checkins/2026-06-27/2030'
     });
     assert.equal(putAttempts, 0);
+  });
+
+  it('maps a claimed-only conflict to a retryable local draft state', () => {
+    const result = buildBlockedReservationDraft({
+      symptoms: { redness: 1, swelling: 1, flaking: 1, itch: 1, tightness: 1 },
+      note: 'keep this draft',
+      syncStatus: 'ready',
+      claimedCheckinPath: '',
+      uploadedCheckinPath: '',
+      errorMessage: ''
+    }, {
+      status: 'blocked',
+      checkinPath: 'checkins/2026-06-27/0915',
+      claimedCheckinPath: 'checkins/2026-06-27/0915',
+      reason: 'claimed'
+    });
+
+    assert.equal(result.syncStatus, 'upload_failed');
+    assert.equal(result.claimedCheckinPath, '');
+    assert.equal(result.uploadedCheckinPath, '');
+    assert.match(result.errorMessage, /Another device is preparing today's check-in/);
+    assert.equal(result.note, 'keep this draft');
+  });
+
+  it('maps a claimed-and-complete conflict to an uploaded local draft state', () => {
+    const result = buildBlockedReservationDraft({
+      symptoms: { redness: 1, swelling: 1, flaking: 1, itch: 1, tightness: 1 },
+      note: 'keep this draft',
+      syncStatus: 'ready',
+      claimedCheckinPath: '',
+      uploadedCheckinPath: '',
+      errorMessage: ''
+    }, {
+      status: 'blocked',
+      checkinPath: 'checkins/2026-06-27/0915',
+      claimedCheckinPath: 'checkins/2026-06-27/0915',
+      reason: 'completed'
+    });
+
+    assert.equal(result.syncStatus, 'uploaded');
+    assert.equal(result.claimedCheckinPath, 'checkins/2026-06-27/0915');
+    assert.equal(result.uploadedCheckinPath, 'checkins/2026-06-27/0915');
+    assert.equal(result.errorMessage, '');
   });
 });
 

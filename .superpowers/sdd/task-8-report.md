@@ -196,3 +196,29 @@ Addressed the remaining race condition where two devices could both pass the rep
 ### Test command output summary
 - Ran `npm test`
 - Result: PASS (`51` tests, `51` passed, `0` failed)
+
+---
+
+## Task 8 review fix: distinguish claimed vs completed day claims
+
+Addressed the latest review finding where an existing `daily-claim.json` without a matching `complete.json` was treated as a successful upload and permanently locked the day.
+
+### What changed
+- Added `checkinPathHasCompleteMarker()` in `js/app.js` so reservation flow can verify whether a claimed check-in path is actually complete.
+- Updated `reserveCheckinDay()` to distinguish:
+  - `reason: 'claimed'` when another client has reserved the day but has not finished the check-in
+  - `reason: 'completed'` when the claimed path already contains `complete.json`
+- Added `buildBlockedReservationDraft()` so blocked reservations map cleanly into local draft state:
+  - claimed-only conflicts now persist `syncStatus: 'upload_failed'`, clear upload success paths, keep the draft, and show a retry message explaining another device is still preparing the check-in
+  - claimed-and-complete conflicts now persist `syncStatus: 'uploaded'` with `uploadedCheckinPath`
+- Kept retry behavior intact for this client’s own failed upload path: when `upload_failed` already owns the same `claimedCheckinPath`, prepare still reuses that path and proceeds.
+
+### Added coverage
+- Added focused tests in `tests/smoke.test.js` proving:
+  - claimed-only conflicts are not treated as uploaded and remain retryable locally
+  - claimed paths with `complete.json` are treated as uploaded/locked
+  - own failed uploads still reuse the existing `claimedCheckinPath`
+
+### Test command output summary
+- Ran `npm test`
+- Result: PASS (`54` tests, `54` passed, `0` failed)

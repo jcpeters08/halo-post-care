@@ -273,6 +273,18 @@ function isFileEntry(entry, fileName) {
   return entry?.type === 'file' && entry?.name === fileName;
 }
 
+export async function checkinPathHasCompleteMarker(client, checkinPath) {
+  try {
+    const checkinEntries = await client.listDirectory(checkinPath);
+    return checkinEntries.some((checkinEntry) => isFileEntry(checkinEntry, 'complete.json'));
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function findCompletedCheckinPathForDate(client, todayIso) {
   const datePath = `checkins/${todayIso}`;
   let dateEntries;
@@ -288,8 +300,7 @@ export async function findCompletedCheckinPathForDate(client, todayIso) {
 
   for (const entry of dateEntries.filter(isDirectoryEntry)) {
     const checkinPath = getDirectoryEntryPath(entry, `${datePath}/${entry?.name || ''}`);
-    const checkinEntries = await client.listDirectory(checkinPath);
-    if (checkinEntries.some((checkinEntry) => isFileEntry(checkinEntry, 'complete.json'))) {
+    if (await checkinPathHasCompleteMarker(client, checkinPath)) {
       return checkinPath;
     }
   }
@@ -357,7 +368,9 @@ export async function reserveCheckinDay({
     : '';
 
   if (existingClaimPath) {
-    if (syncStatus === 'upload_failed' && reusableClaimPath && reusableClaimPath === existingClaimPath) {
+    const claimHasCompleteMarker = await checkinPathHasCompleteMarker(client, existingClaimPath);
+
+    if (!claimHasCompleteMarker && syncStatus === 'upload_failed' && reusableClaimPath && reusableClaimPath === existingClaimPath) {
       return {
         status: 'reserved',
         checkinPath: existingClaimPath,
@@ -369,7 +382,7 @@ export async function reserveCheckinDay({
       status: 'blocked',
       checkinPath: existingClaimPath,
       claimedCheckinPath: existingClaimPath,
-      reason: 'claimed'
+      reason: claimHasCompleteMarker ? 'completed' : 'claimed'
     };
   }
 
@@ -415,11 +428,12 @@ export async function reserveCheckinDay({
     const conflictingClaim = await loadDayClaim(client, todayIso);
     const conflictingClaimPath = getClaimPathForDate(conflictingClaim, todayIso);
     if (conflictingClaimPath) {
+      const claimHasCompleteMarker = await checkinPathHasCompleteMarker(client, conflictingClaimPath);
       return {
         status: 'blocked',
         checkinPath: conflictingClaimPath,
         claimedCheckinPath: conflictingClaimPath,
-        reason: 'claimed'
+        reason: claimHasCompleteMarker ? 'completed' : 'claimed'
       };
     }
 
@@ -440,6 +454,28 @@ export async function reserveCheckinDay({
       reason: 'claimed'
     };
   }
+}
+
+export function buildBlockedReservationDraft(storedDraft, reservation) {
+  const knownPath = reservation?.checkinPath || '';
+
+  if (reservation?.reason === 'completed') {
+    return {
+      ...storedDraft,
+      syncStatus: 'uploaded',
+      claimedCheckinPath: knownPath,
+      uploadedCheckinPath: knownPath,
+      errorMessage: ''
+    };
+  }
+
+  return {
+    ...storedDraft,
+    syncStatus: 'upload_failed',
+    claimedCheckinPath: '',
+    uploadedCheckinPath: '',
+    errorMessage: 'Another device is preparing today\'s check-in. Sync/try again after it finishes.'
+  };
 }
 
 function encodeBytesToBase64(bytes) {
@@ -801,20 +837,11 @@ async function prepareCheckin() {
     });
 
     if (reservation.status === 'blocked') {
-      const knownPath = reservation.checkinPath || '';
-      const message = reservation.reason === 'completed'
-        ? 'Today\'s completed check-in already exists in the repo.'
-        : knownPath
-          ? `Today's check-in was already claimed at ${knownPath}.`
-          : 'Today\'s check-in was already claimed by another client.';
-
-      saveCheckinDraft(window.localStorage, context.todayIso, {
-        ...storedDraft,
-        syncStatus: knownPath ? 'uploaded' : 'upload_failed',
-        claimedCheckinPath: knownPath,
-        uploadedCheckinPath: knownPath,
-        errorMessage: message
-      });
+      saveCheckinDraft(
+        window.localStorage,
+        context.todayIso,
+        buildBlockedReservationDraft(storedDraft, reservation)
+      );
       render('log');
       return;
     }
