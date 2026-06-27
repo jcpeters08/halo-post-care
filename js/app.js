@@ -34,7 +34,7 @@ import {
 } from './photos.js';
 import { loadSettings, loadJson, saveJson } from './storage.js';
 import { renderGuide } from './ui/guide.js';
-import { renderLog } from './ui/log.js';
+import { getPrepareCheckinState, isSameDayUploadedCheckin, renderLog } from './ui/log.js';
 import { renderToday } from './ui/today.js';
 
 const routes = ['today', 'log', 'guide', 'settings'];
@@ -162,10 +162,11 @@ function nextSyncStatus(hasRequiredPhotos) {
 }
 
 function markCheckinDraftDirty(draft, hasRequiredPhotos) {
+  const uploadedToday = isSameDayUploadedCheckin(draft, getTodayIso());
   return {
     ...draft,
-    syncStatus: nextSyncStatus(hasRequiredPhotos),
-    uploadedCheckinPath: '',
+    syncStatus: uploadedToday ? 'uploaded' : nextSyncStatus(hasRequiredPhotos),
+    uploadedCheckinPath: uploadedToday ? draft.uploadedCheckinPath : '',
     errorMessage: ''
   };
 }
@@ -220,6 +221,10 @@ function getSettingsErrorMessage(settings) {
 function describeSyncState(draft) {
   if (draft.syncStatus === 'uploading') {
     return 'Uploading check-in...';
+  }
+
+  if (isSameDayUploadedCheckin(draft, getTodayIso())) {
+    return 'Today\'s check-in already uploaded.';
   }
 
   if (draft.syncStatus === 'uploaded') {
@@ -549,12 +554,27 @@ async function prepareCheckin() {
   const photoDrafts = await getPhotoDrafts(context.todayIso);
   const byArea = draftsByArea(photoDrafts);
   const hasAllPhotos = PHOTO_AREAS.every((area) => !!byArea[area]);
+  const prepareState = getPrepareCheckinState({
+    draft: storedDraft,
+    todayIso: context.todayIso,
+    hasAllPhotos
+  });
+
+  if (prepareState.reason === 'already_uploaded') {
+    saveCheckinDraft(window.localStorage, context.todayIso, {
+      ...storedDraft,
+      syncStatus: 'uploaded',
+      errorMessage: ''
+    });
+    render('log');
+    return;
+  }
 
   if (!hasAllPhotos) {
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'draft',
-      errorMessage: 'Add face, neck, and hands photos before preparing a check-in.'
+      errorMessage: prepareState.message
     });
     render('log');
     return;

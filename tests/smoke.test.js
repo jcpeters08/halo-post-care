@@ -7,6 +7,7 @@ import {
   loadAppliedAssessment,
   loadDailyState
 } from '../js/app.js';
+import { getPrepareCheckinState, renderLog } from '../js/ui/log.js';
 
 const requiredFiles = [
   'index.html',
@@ -84,6 +85,57 @@ describe('project shell', () => {
     assert.match(guideRoot.innerHTML, /Reintroduction ladder/);
     assert.match(guideRoot.innerHTML, /Call clinic if/);
     assert.match(guideRoot.innerHTML, /href="tel:952-767-3163"/);
+  });
+
+  it('disables preparing a second same-day check-in after upload success', () => {
+    const draft = {
+      symptoms: { redness: 1, swelling: 1, flaking: 1, itch: 1, tightness: 1 },
+      note: '',
+      syncStatus: 'uploaded',
+      uploadedCheckinPath: 'checkins/2026-06-27/2030',
+      errorMessage: ''
+    };
+    const prepareState = getPrepareCheckinState({
+      draft,
+      todayIso: '2026-06-27',
+      hasAllPhotos: true
+    });
+
+    assert.equal(prepareState.disabled, true);
+    assert.equal(prepareState.reason, 'already_uploaded');
+
+    const root = { innerHTML: '' };
+    renderLog(root, {
+      todayIso: '2026-06-27',
+      recoveryDay: 1,
+      stage: getStageForDay(1)
+    }, {
+      draft,
+      photoDraftsByArea: { face: {}, neck: {}, hands: {} },
+      previewUrls: {},
+      photoError: ''
+    });
+
+    assert.match(root.innerHTML, /Today's check-in already uploaded\./);
+    assert.match(root.innerHTML, /Today's check-in uploaded/);
+    assert.match(root.innerHTML, /disabled/);
+  });
+
+  it('keeps retry available after an upload failure', () => {
+    const prepareState = getPrepareCheckinState({
+      draft: {
+        symptoms: { redness: 1, swelling: 1, flaking: 1, itch: 1, tightness: 1 },
+        note: '',
+        syncStatus: 'upload_failed',
+        uploadedCheckinPath: '',
+        errorMessage: 'Upload failed before complete.json.'
+      },
+      todayIso: '2026-06-27',
+      hasAllPhotos: true
+    });
+
+    assert.equal(prepareState.disabled, false);
+    assert.equal(prepareState.reason, 'ready');
   });
 });
 

@@ -36,6 +36,54 @@ const SYNC_TONES = {
   upload_failed: 'is-call'
 };
 
+export function isSameDayUploadedCheckin(draft, todayIso) {
+  if (draft?.syncStatus !== 'uploaded') {
+    return false;
+  }
+
+  if (typeof draft?.uploadedCheckinPath !== 'string' || typeof todayIso !== 'string') {
+    return false;
+  }
+
+  return draft.uploadedCheckinPath.startsWith(`checkins/${todayIso}/`);
+}
+
+export function getPrepareCheckinState({ draft, todayIso, hasAllPhotos }) {
+  if (isSameDayUploadedCheckin(draft, todayIso)) {
+    return {
+      disabled: true,
+      label: 'Today\'s check-in uploaded',
+      message: 'Today\'s check-in already uploaded. Come back tomorrow for the next one.',
+      reason: 'already_uploaded'
+    };
+  }
+
+  if (draft?.syncStatus === 'uploading') {
+    return {
+      disabled: true,
+      label: 'Uploading...',
+      message: '',
+      reason: 'uploading'
+    };
+  }
+
+  if (!hasAllPhotos) {
+    return {
+      disabled: true,
+      label: 'Prepare check-in',
+      message: 'Add face, neck, and hands photos before preparing a check-in.',
+      reason: 'missing_photos'
+    };
+  }
+
+  return {
+    disabled: false,
+    label: 'Prepare check-in',
+    message: '',
+    reason: 'ready'
+  };
+}
+
 function escapeHtml(value) {
   return `${value ?? ''}`
     .replaceAll('&', '&amp;')
@@ -105,11 +153,17 @@ function renderSymptomField(id, label, value) {
 export function renderLog(root, context, viewModel) {
   const { photoDraftsByArea = {}, previewUrls = {}, photoError = '', draft } = viewModel;
   const hasAllPhotos = PHOTO_AREAS.every((area) => !!photoDraftsByArea[area]);
+  const prepareState = getPrepareCheckinState({
+    draft,
+    todayIso: context.todayIso,
+    hasAllPhotos
+  });
   const syncStatus = draft.syncStatus ?? 'draft';
   const syncLabel = SYNC_LABELS[syncStatus] ?? SYNC_LABELS.draft;
   const syncTone = SYNC_TONES[syncStatus] ?? '';
   const helperText = photoError
     || draft.errorMessage
+    || prepareState.message
     || (draft.uploadedCheckinPath ? `Latest upload: ${draft.uploadedCheckinPath}` : 'Drafts stay on this device until upload finishes.');
 
   root.innerHTML = `
@@ -173,9 +227,9 @@ export function renderLog(root, context, viewModel) {
             class="primary-button"
             type="button"
             data-action="prepare-checkin"
-            ${hasAllPhotos && syncStatus !== 'uploading' ? '' : 'disabled'}
+            ${prepareState.disabled ? 'disabled' : ''}
           >
-            ${syncStatus === 'uploading' ? 'Uploading...' : 'Prepare check-in'}
+            ${prepareState.label}
           </button>
         </div>
         <p class="body-copy">Uploads summary.md, manifest.json, three JPGs, and complete.json after the required photos are ready.</p>
