@@ -41,6 +41,7 @@ const routes = ['today', 'log', 'guide', 'settings'];
 const DAILY_STATE_KEY = 'halo_daily_v1';
 const APPLIED_ASSESSMENT_KEY = 'halo_applied_assessment_v1';
 const CHECKIN_DRAFTS_KEY = 'halo_checkin_drafts_v1';
+const DAILY_CLAIM_FILE = 'daily-claim.json';
 const DEFAULT_SYMPTOMS = {
   redness: 1,
   swelling: 1,
@@ -106,6 +107,7 @@ function createInitialCheckinDraft() {
     symptoms: { ...DEFAULT_SYMPTOMS },
     note: '',
     syncStatus: 'draft',
+    claimedCheckinPath: '',
     uploadedCheckinPath: '',
     errorMessage: ''
   };
@@ -128,6 +130,9 @@ function normalizeCheckinDraft(storedDraft) {
     ),
     note: typeof storedDraft.note === 'string' ? storedDraft.note : '',
     syncStatus,
+    claimedCheckinPath: typeof storedDraft.claimedCheckinPath === 'string'
+      ? storedDraft.claimedCheckinPath
+      : '',
     uploadedCheckinPath: typeof storedDraft.uploadedCheckinPath === 'string'
       ? storedDraft.uploadedCheckinPath
       : '',
@@ -166,6 +171,7 @@ function markCheckinDraftDirty(draft, hasRequiredPhotos) {
   return {
     ...draft,
     syncStatus: uploadedToday ? 'uploaded' : nextSyncStatus(hasRequiredPhotos),
+    claimedCheckinPath: uploadedToday ? draft.claimedCheckinPath : draft.claimedCheckinPath,
     uploadedCheckinPath: uploadedToday ? draft.uploadedCheckinPath : '',
     errorMessage: ''
   };
@@ -289,6 +295,151 @@ export async function findCompletedCheckinPathForDate(client, todayIso) {
   }
 
   return null;
+}
+
+function buildDayClaimPath(todayIso) {
+  return `checkins/${todayIso}/${DAILY_CLAIM_FILE}`;
+}
+
+function buildDayClaim({ todayIso, checkinPath, claimedAt }) {
+  return {
+    schemaVersion: 1,
+    date: todayIso,
+    checkinPath,
+    claimedAt
+  };
+}
+
+function isNotFoundError(error) {
+  return error?.status === 404;
+}
+
+function isClaimConflictError(error) {
+  if (error?.status === 409 || error?.status === 422) {
+    return true;
+  }
+
+  return /already exists|exists/i.test(`${error?.message || ''}`);
+}
+
+function getClaimPathForDate(claim, todayIso) {
+  if (!isPlainObject(claim) || typeof claim.checkinPath !== 'string') {
+    return '';
+  }
+
+  return claim.checkinPath.startsWith(`checkins/${todayIso}/`) ? claim.checkinPath : '';
+}
+
+async function loadDayClaim(client, todayIso) {
+  try {
+    return await client.getJson(buildDayClaimPath(todayIso));
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function reserveCheckinDay({
+  client,
+  todayIso,
+  proposedCheckinPath,
+  claimedAt,
+  syncStatus,
+  claimedCheckinPath
+}) {
+  const existingClaim = await loadDayClaim(client, todayIso);
+  const existingClaimPath = getClaimPathForDate(existingClaim, todayIso);
+  const reusableClaimPath = typeof claimedCheckinPath === 'string'
+    && claimedCheckinPath.startsWith(`checkins/${todayIso}/`)
+    ? claimedCheckinPath
+    : '';
+
+  if (existingClaimPath) {
+    if (syncStatus === 'upload_failed' && reusableClaimPath && reusableClaimPath === existingClaimPath) {
+      return {
+        status: 'reserved',
+        checkinPath: existingClaimPath,
+        claimedCheckinPath: existingClaimPath
+      };
+    }
+
+    return {
+      status: 'blocked',
+      checkinPath: existingClaimPath,
+      claimedCheckinPath: existingClaimPath,
+      reason: 'claimed'
+    };
+  }
+
+  const existingCompletedPath = await findCompletedCheckinPathForDate(client, todayIso);
+  if (existingCompletedPath) {
+    return {
+      status: 'blocked',
+      checkinPath: existingCompletedPath,
+      claimedCheckinPath: existingCompletedPath,
+      reason: 'completed'
+    };
+  }
+
+  if (syncStatus === 'upload_failed' && reusableClaimPath) {
+    return {
+      status: 'reserved',
+      checkinPath: reusableClaimPath,
+      claimedCheckinPath: reusableClaimPath
+    };
+  }
+
+  try {
+    await client.putFile(
+      buildDayClaimPath(todayIso),
+      JSON.stringify(buildDayClaim({
+        todayIso,
+        checkinPath: proposedCheckinPath,
+        claimedAt
+      }), null, 2),
+      'Claim daily check-in'
+    );
+
+    return {
+      status: 'reserved',
+      checkinPath: proposedCheckinPath,
+      claimedCheckinPath: proposedCheckinPath
+    };
+  } catch (error) {
+    if (!isClaimConflictError(error)) {
+      throw error;
+    }
+
+    const conflictingClaim = await loadDayClaim(client, todayIso);
+    const conflictingClaimPath = getClaimPathForDate(conflictingClaim, todayIso);
+    if (conflictingClaimPath) {
+      return {
+        status: 'blocked',
+        checkinPath: conflictingClaimPath,
+        claimedCheckinPath: conflictingClaimPath,
+        reason: 'claimed'
+      };
+    }
+
+    const completedPath = await findCompletedCheckinPathForDate(client, todayIso);
+    if (completedPath) {
+      return {
+        status: 'blocked',
+        checkinPath: completedPath,
+        claimedCheckinPath: completedPath,
+        reason: 'completed'
+      };
+    }
+
+    return {
+      status: 'blocked',
+      checkinPath: '',
+      claimedCheckinPath: '',
+      reason: 'claimed'
+    };
+  }
 }
 
 function encodeBytesToBase64(bytes) {
@@ -600,6 +751,7 @@ async function prepareCheckin() {
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'uploaded',
+      claimedCheckinPath: storedDraft.claimedCheckinPath,
       errorMessage: ''
     });
     render('log');
@@ -610,6 +762,7 @@ async function prepareCheckin() {
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'draft',
+      claimedCheckinPath: storedDraft.claimedCheckinPath,
       errorMessage: prepareState.message
     });
     render('log');
@@ -620,74 +773,87 @@ async function prepareCheckin() {
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'ready',
+      claimedCheckinPath: storedDraft.claimedCheckinPath,
       errorMessage: settingsError
     });
     render('log');
     return;
   }
 
+  const now = new Date();
+  const claimedAt = formatLocalTimestamp(now);
+  const proposedCheckinPath = storedDraft.syncStatus === 'upload_failed' && storedDraft.claimedCheckinPath
+    ? storedDraft.claimedCheckinPath
+    : buildCheckinPath(context.todayIso, formatLocalTimeValue(now));
+
   let client;
+  let reservedCheckinPath = storedDraft.claimedCheckinPath;
+  let startedUpload = false;
   try {
     client = createGitHubClient(context.settings);
-    const existingCompletedPath = await findCompletedCheckinPathForDate(client, context.todayIso);
+    const reservation = await reserveCheckinDay({
+      client,
+      todayIso: context.todayIso,
+      proposedCheckinPath,
+      claimedAt,
+      syncStatus: storedDraft.syncStatus,
+      claimedCheckinPath: storedDraft.claimedCheckinPath
+    });
 
-    if (existingCompletedPath) {
+    if (reservation.status === 'blocked') {
+      const knownPath = reservation.checkinPath || '';
+      const message = reservation.reason === 'completed'
+        ? 'Today\'s completed check-in already exists in the repo.'
+        : knownPath
+          ? `Today's check-in was already claimed at ${knownPath}.`
+          : 'Today\'s check-in was already claimed by another client.';
+
       saveCheckinDraft(window.localStorage, context.todayIso, {
         ...storedDraft,
-        syncStatus: 'uploaded',
-        uploadedCheckinPath: existingCompletedPath,
-        errorMessage: ''
+        syncStatus: knownPath ? 'uploaded' : 'upload_failed',
+        claimedCheckinPath: knownPath,
+        uploadedCheckinPath: knownPath,
+        errorMessage: message
       });
       render('log');
       return;
     }
-  } catch (error) {
-    const message = error instanceof GitHubSettingsError
-      ? error.message
-      : `Could not verify whether today's check-in already exists. ${error.message || 'Try again.'}`;
 
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
-      syncStatus: 'upload_failed',
-      errorMessage: message
+      syncStatus: 'uploading',
+      claimedCheckinPath: reservation.claimedCheckinPath,
+      uploadedCheckinPath: '',
+      errorMessage: ''
     });
+    startedUpload = true;
     render('log');
-    return;
-  }
 
-  saveCheckinDraft(window.localStorage, context.todayIso, {
-    ...storedDraft,
-    syncStatus: 'uploading',
-    errorMessage: ''
-  });
-  render('log');
+    const checkinPath = reservation.checkinPath;
+    reservedCheckinPath = checkinPath;
+    const adherence = getCompletionSummary(context.state, context.targets);
+    const manifest = buildManifest({
+      checkinPath,
+      createdAt: claimedAt,
+      procedureDate: context.procedureDate,
+      recoveryDay: context.recoveryDay,
+      stageAuto: context.stage.id,
+      symptoms: storedDraft.symptoms,
+      adherence,
+      note: storedDraft.note
+    });
+    const photoFiles = Object.fromEntries(
+      await Promise.all(
+        PHOTO_AREAS.map(async (area) => {
+          const blob = byArea[area]?.blob;
+          if (!(blob instanceof Blob)) {
+            throw new Error(`Missing ${area} photo`);
+          }
+          return [`${area}.jpg`, await blobToBase64(blob)];
+        })
+      )
+    );
 
-  const now = new Date();
-  const checkinPath = buildCheckinPath(context.todayIso, formatLocalTimeValue(now));
-  const adherence = getCompletionSummary(context.state, context.targets);
-  const manifest = buildManifest({
-    checkinPath,
-    createdAt: formatLocalTimestamp(now),
-    procedureDate: context.procedureDate,
-    recoveryDay: context.recoveryDay,
-    stageAuto: context.stage.id,
-    symptoms: storedDraft.symptoms,
-    adherence,
-    note: storedDraft.note
-  });
-  const photoFiles = Object.fromEntries(
-    await Promise.all(
-      PHOTO_AREAS.map(async (area) => {
-        const blob = byArea[area]?.blob;
-        if (!(blob instanceof Blob)) {
-          throw new Error(`Missing ${area} photo`);
-        }
-        return [`${area}.jpg`, await blobToBase64(blob)];
-      })
-    )
-  );
-
-  try {
     await client.uploadCheckin({
       path: checkinPath,
       files: photoFiles,
@@ -699,21 +865,26 @@ async function prepareCheckin() {
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'uploaded',
+      claimedCheckinPath: checkinPath,
       uploadedCheckinPath: checkinPath,
       errorMessage: ''
     });
   } catch (error) {
     const message = error instanceof GitHubSettingsError
       ? error.message
-      : `Upload failed before complete.json. ${error.message || 'Draft saved locally.'}`;
+      : startedUpload
+        ? `Upload failed before complete.json. ${error.message || 'Draft saved locally.'}`
+        : `Could not reserve today's check-in upload. ${error.message || 'Try again.'}`;
 
     saveCheckinDraft(window.localStorage, context.todayIso, {
       ...storedDraft,
       syncStatus: 'upload_failed',
+      claimedCheckinPath: reservedCheckinPath,
       errorMessage: message
     });
+    render('log');
+    return;
   }
-
   render('log');
 }
 

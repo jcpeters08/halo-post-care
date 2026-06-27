@@ -163,3 +163,36 @@ Addressed the remaining review finding where same-day duplicate prevention still
 ### Test command output summary
 - Ran `npm test`
 - Result: PASS (`48` tests, `48` passed, `0` failed)
+
+---
+
+## Task 8 review fix: atomic day-level claim before upload
+
+Addressed the remaining race condition where two devices could both pass the repo duplicate check and then upload the same-day check-in.
+
+### What changed
+- Added day-level claim support in `js/app.js` with `checkins/YYYY-MM-DD/daily-claim.json`.
+- Claim creation now happens before any upload work using the existing GitHub Contents create flow without a `sha`, so GitHub rejects duplicate creates atomically.
+- Claim payloads include:
+  - `schemaVersion`
+  - `date`
+  - `checkinPath`
+  - `claimedAt`
+- Added local `claimedCheckinPath` draft state so a client that already reserved a path can retry from `upload_failed` without generating a new folder name or re-claiming.
+- `prepareCheckin()` now:
+  - prefers an existing day-level claim when present
+  - still checks legacy completed folders with `complete.json` when no claim exists
+  - blocks upload when another client already claimed or completed the day
+  - preserves local drafts instead of clearing them
+  - keeps the reserved path on `upload_failed` so retry can reuse it
+- Other GitHub/network failures during claim/verification now stop the upload before file writes and surface a retryable reservation error.
+
+### Added coverage
+- Added focused tests in `tests/smoke.test.js` proving:
+  - a day claim is created before upload and returns the reserved path
+  - a `422`/exists conflict blocks upload and resolves the existing claimed path
+  - retry after `upload_failed` reuses the same local `claimedCheckinPath` without re-claiming
+
+### Test command output summary
+- Ran `npm test`
+- Result: PASS (`51` tests, `51` passed, `0` failed)

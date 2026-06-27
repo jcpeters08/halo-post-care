@@ -6,7 +6,8 @@ import { buildDailyTargets, getStageForDay, getTimelineForDay } from '../js/day.
 import {
   findCompletedCheckinPathForDate,
   loadAppliedAssessment,
-  loadDailyState
+  loadDailyState,
+  reserveCheckinDay
 } from '../js/app.js';
 import { getPrepareCheckinState, renderLog } from '../js/ui/log.js';
 
@@ -203,6 +204,129 @@ describe('Task 8 repo-backed duplicate detection', () => {
       () => findCompletedCheckinPathForDate(client, '2026-06-27'),
       /503: Service Unavailable/
     );
+  });
+
+  it('creates a day claim before upload and returns the claimed path', async () => {
+    const calls = [];
+    const client = {
+      async getJson() {
+        const error = new Error('404: Not Found');
+        error.status = 404;
+        throw error;
+      },
+      async putFile(path, content, message) {
+        calls.push({ path, content: JSON.parse(content), message });
+      },
+      async listDirectory() {
+        const error = new Error('404: Not Found');
+        error.status = 404;
+        throw error;
+      }
+    };
+
+    const result = await reserveCheckinDay({
+      client,
+      todayIso: '2026-06-27',
+      proposedCheckinPath: 'checkins/2026-06-27/2030',
+      claimedAt: '2026-06-27T20:30:00-05:00',
+      syncStatus: 'ready',
+      claimedCheckinPath: ''
+    });
+
+    assert.deepEqual(result, {
+      status: 'reserved',
+      checkinPath: 'checkins/2026-06-27/2030',
+      claimedCheckinPath: 'checkins/2026-06-27/2030'
+    });
+    assert.deepEqual(calls, [{
+      path: 'checkins/2026-06-27/daily-claim.json',
+      content: {
+        schemaVersion: 1,
+        date: '2026-06-27',
+        checkinPath: 'checkins/2026-06-27/2030',
+        claimedAt: '2026-06-27T20:30:00-05:00'
+      },
+      message: 'Claim daily check-in'
+    }]);
+  });
+
+  it('blocks upload when the claim already exists and resolves the existing path', async () => {
+    const conflict = new Error('422: already exists');
+    conflict.status = 422;
+    const client = {
+      async getJson(path) {
+        assert.equal(path, 'checkins/2026-06-27/daily-claim.json');
+        return {
+          schemaVersion: 1,
+          date: '2026-06-27',
+          checkinPath: 'checkins/2026-06-27/0915',
+          claimedAt: '2026-06-27T09:15:00-05:00'
+        };
+      },
+      async putFile() {
+        throw conflict;
+      },
+      async listDirectory() {
+        const error = new Error('404: Not Found');
+        error.status = 404;
+        throw error;
+      }
+    };
+
+    const result = await reserveCheckinDay({
+      client,
+      todayIso: '2026-06-27',
+      proposedCheckinPath: 'checkins/2026-06-27/2030',
+      claimedAt: '2026-06-27T20:30:00-05:00',
+      syncStatus: 'ready',
+      claimedCheckinPath: ''
+    });
+
+    assert.deepEqual(result, {
+      status: 'blocked',
+      checkinPath: 'checkins/2026-06-27/0915',
+      claimedCheckinPath: 'checkins/2026-06-27/0915',
+      reason: 'claimed'
+    });
+  });
+
+  it('reuses the same claimed path after upload_failed without re-claiming', async () => {
+    let putAttempts = 0;
+    const client = {
+      async getJson(path) {
+        assert.equal(path, 'checkins/2026-06-27/daily-claim.json');
+        return {
+          schemaVersion: 1,
+          date: '2026-06-27',
+          checkinPath: 'checkins/2026-06-27/2030',
+          claimedAt: '2026-06-27T20:30:00-05:00'
+        };
+      },
+      async putFile() {
+        putAttempts += 1;
+      },
+      async listDirectory() {
+        const error = new Error('404: Not Found');
+        error.status = 404;
+        throw error;
+      }
+    };
+
+    const result = await reserveCheckinDay({
+      client,
+      todayIso: '2026-06-27',
+      proposedCheckinPath: 'checkins/2026-06-27/2110',
+      claimedAt: '2026-06-27T21:10:00-05:00',
+      syncStatus: 'upload_failed',
+      claimedCheckinPath: 'checkins/2026-06-27/2030'
+    });
+
+    assert.deepEqual(result, {
+      status: 'reserved',
+      checkinPath: 'checkins/2026-06-27/2030',
+      claimedCheckinPath: 'checkins/2026-06-27/2030'
+    });
+    assert.equal(putAttempts, 0);
   });
 });
 
