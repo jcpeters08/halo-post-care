@@ -14,6 +14,7 @@ This file is the operational briefing for Claude/Codex agents working in this re
 - Test command: `npm test`
 - Local server: `npm run serve` -> `http://localhost:4173`
 - Latest app update on 2026-06-27: visible Codex photo assessments are now in the app. Today shows the latest assessment, and the `Assess` tab shows assessment history newest-first.
+- Routine content fix on 2026-06-27: AM core sequence now leads with HOCl spray (was Thermal water; thermal water is as-needed comfort, not a fixed step), and SPF is AM-only (removed from the PM/evening routine, which is now 4 steps). Matches the provider schedule's core daily sequence. Service worker cache bumped to `halo-post-care-v4`.
 
 The app is working and published. The private data repo exists, is private, and has a `checkins/` folder. The in-app GitHub token connection test has passed.
 

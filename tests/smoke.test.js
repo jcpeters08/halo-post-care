@@ -75,8 +75,8 @@ describe('project shell', () => {
       timeline: getTimelineForDay(1),
       targets,
       state: {
-        am: { cleanse: true, thermal_water: false, alastin: false, cicalfate: false, spf: false },
-        pm: { cleanse: false, hocl: true, alastin: false, cicalfate: false, spf: false },
+        am: { cleanse: true, hocl: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: true, alastin: false, cicalfate: false },
         counters: { hocl: 1, cicalfate: 2, spf: 0, acyclovir: 1, heliocare: 0 },
         flags: { elevated: true, coldCompress: false }
       },
@@ -188,8 +188,8 @@ describe('project shell', () => {
       timeline: getTimelineForDay(1),
       targets,
       state: {
-        am: { cleanse: false, thermal_water: false, alastin: false, cicalfate: false, spf: false },
-        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        am: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false },
         counters: { hocl: 0, cicalfate: 0, spf: 0, acyclovir: 0, heliocare: 0 },
         flags: { elevated: false, coldCompress: false }
       },
@@ -223,8 +223,8 @@ describe('project shell', () => {
       timeline: getTimelineForDay(1),
       targets,
       state: {
-        am: { cleanse: false, thermal_water: false, alastin: false, cicalfate: false, spf: false },
-        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        am: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false },
         counters: { hocl: 0, cicalfate: 0, spf: 0, acyclovir: 0, heliocare: 0 },
         flags: { elevated: false, coldCompress: false }
       },
@@ -721,7 +721,7 @@ describe('Task 7 storage hardening', () => {
     const storage = createStorage({
       halo_daily_v1: {
         '2026-06-27': {
-          am: { cleanse: true, thermal_water: 'yes' },
+          am: { cleanse: true, hocl: 'yes' },
           pm: { hocl: 1 },
           counters: { hocl: '3.9', cicalfate: -2, ghost: 8 },
           flags: { elevated: 1 }
@@ -736,7 +736,7 @@ describe('Task 7 storage hardening', () => {
     assert.deepEqual(Object.keys(state.counters), Object.keys(targets.counters));
     assert.deepEqual(Object.keys(state.flags), Object.keys(targets.flags));
     assert.equal(state.am.cleanse, true);
-    assert.equal(state.am.thermal_water, false);
+    assert.equal(state.am.hocl, false);
     assert.equal(state.pm.hocl, false);
     assert.equal(state.counters.hocl, 3);
     assert.equal(state.counters.cicalfate, 0);

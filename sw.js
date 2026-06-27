@@ -1,4 +1,4 @@
-const CACHE_NAME = 'halo-post-care-v3';
+const CACHE_NAME = 'halo-post-care-v4';
 const APP_SHELL = [
   './',
   './index.html',

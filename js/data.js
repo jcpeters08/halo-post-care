@@ -95,7 +95,7 @@ export const RECOVERY_CONTENT = {
   routine: {
     am: [
       { id: 'cleanse', label: 'Cleanse', details: 'Use lukewarm water and gentle cleanser.' },
-      { id: 'thermal_water', label: 'Thermal water', details: 'Pat on as needed.' },
+      { id: 'hocl', label: 'HOCl spray', details: 'Air-dry 30-60 seconds.' },
       { id: 'alastin', label: 'Alastin Skin Nectar', details: 'Apply a thin layer.' },
       { id: 'cicalfate', label: 'Cicalfate+', details: 'Apply occlusive layer.' },
       { id: 'spf', label: 'Physical SPF', details: 'Apply broad-spectrum SPF 30-50.' }
@@ -104,8 +104,7 @@ export const RECOVERY_CONTENT = {
       { id: 'cleanse', label: 'Cleanse', details: 'Use lukewarm water and gentle cleanser.' },
       { id: 'hocl', label: 'HOCl spray', details: 'Air-dry 30-60 seconds.' },
       { id: 'alastin', label: 'Alastin Skin Nectar', details: 'Apply a thin layer.' },
-      { id: 'cicalfate', label: 'Cicalfate+', details: 'Apply occlusive layer.' },
-      { id: 'spf', label: 'Physical SPF', details: 'Apply broad-spectrum SPF 30-50.' }
+      { id: 'cicalfate', label: 'Cicalfate+', details: 'Apply occlusive layer.' }
     ]
   }
 };
