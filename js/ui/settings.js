@@ -138,7 +138,7 @@ export function renderSettings(root, viewModel) {
             type="button"
             data-action="sync-assessment"
             ${disableSync ? 'disabled' : ''}
-          >${busyAction === 'sync-assessment' ? 'Syncing Codex assessment...' : 'Sync latest Codex assessment'}</button>
+          >${busyAction === 'sync-assessment' ? 'Syncing Codex assessments...' : 'Sync Codex assessments'}</button>
         </div>
         ${renderStatusNote(connectionMessage, connectionTone)}
         ${renderStatusNote(syncMessage, syncTone)}

@@ -1,5 +1,10 @@
 import { getCompletionSummary } from '../checklist.js';
-import { escapeHtml, renderGuidanceCards, renderSafetyPanel } from './components.js';
+import {
+  escapeHtml,
+  renderAssessmentDetails,
+  renderGuidanceCards,
+  renderSafetyPanel
+} from './components.js';
 
 function renderRoutine(period, items, state, summary) {
   const rows = items
@@ -152,6 +157,7 @@ export function renderToday(root, context) {
       ${renderCounters(context.targets.counters, context.state.counters)}
       ${renderFlags(context.targets.flags, context.state.flags)}
       ${renderCodexSafetyAlert(context.assessment)}
+      ${renderAssessmentDetails(context.assessment)}
       ${renderSafetyPanel()}
       ${renderGuidanceCards(context.guidance, context.provenance)}
     </div>

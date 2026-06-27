@@ -112,7 +112,7 @@ h1 {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   padding: 8px 10px max(8px, env(safe-area-inset-bottom));
   background: rgba(247, 244, 239, 0.96);
@@ -151,7 +151,8 @@ h1 {
 .hero-panel__top,
 .section-row,
 .counter-row,
-.contact-list__item {
+.contact-list__item,
+.assessment-observation__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -163,7 +164,8 @@ h1 {
 .mini-card p,
 .rule-row p,
 .timeline-card p,
-.guidance-card p {
+.guidance-card p,
+.assessment-observation p {
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -375,10 +377,68 @@ h1 {
 .timeline-card h3,
 .mini-card h3,
 .rule-row h3,
-.photo-slot h3 {
+.photo-slot h3,
+.assessment-observation h3,
+.assessment-subtitle {
   margin: 0;
   font-size: 1rem;
   line-height: 1.25;
+}
+
+.assessment-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.assessment-summary {
+  padding-left: 12px;
+  border-left: 3px solid var(--accent);
+}
+
+.assessment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.assessment-meta-grid p {
+  margin: 0;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.assessment-meta-grid span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.assessment-observation-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.assessment-observation {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.assessment-observation__header {
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .sr-only {
@@ -687,8 +747,21 @@ h1 {
   .hero-panel__top,
   .section-row,
   .counter-row,
-  .contact-list__item {
+  .contact-list__item,
+  .assessment-observation__header {
     flex-direction: column;
+  }
+
+  .tab-button {
+    font-size: 0.82rem;
+  }
+
+  .assessment-status-row {
+    justify-content: flex-start;
+  }
+
+  .assessment-meta-grid {
+    grid-template-columns: 1fr;
   }
 
   .counter-controls,

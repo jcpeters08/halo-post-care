@@ -41,12 +41,13 @@ import {
   saveJson,
   saveSettings
 } from './storage.js';
+import { renderAssessments } from './ui/assessments.js';
 import { renderGuide } from './ui/guide.js';
 import { getPrepareCheckinState, isSameDayUploadedCheckin, renderLog } from './ui/log.js';
 import { renderSettings } from './ui/settings.js';
 import { renderToday } from './ui/today.js';
 
-const routes = ['today', 'log', 'guide', 'settings'];
+const routes = ['today', 'log', 'assessments', 'guide', 'settings'];
 const DAILY_STATE_KEY = 'halo_daily_v1';
 const APPLIED_ASSESSMENT_KEY = 'halo_applied_assessment_v1';
 const CHECKIN_DRAFTS_KEY = 'halo_checkin_drafts_v1';
@@ -346,7 +347,7 @@ async function syncLatestAssessment(settings) {
         assessmentPath
       };
 
-      if (validateAssessment(candidate).valid) {
+      if (isValidAssessmentCandidate(candidate)) {
         validAssessments.push(candidate);
       }
     } catch {
@@ -359,7 +360,10 @@ async function syncLatestAssessment(settings) {
     throw new Error('No valid assessment.json files found in completed check-ins.');
   }
 
-  saveJson(window.localStorage, APPLIED_ASSESSMENT_KEY, latestAssessment);
+  saveJson(window.localStorage, APPLIED_ASSESSMENT_KEY, {
+    syncedAt: new Date().toISOString(),
+    assessments: sortAssessmentsNewestFirst(validAssessments)
+  });
   saveSettings(window.localStorage, {
     ...loadSettings(window.localStorage),
     lastAssessmentPath: latestAssessment.assessmentPath ?? ''
@@ -747,9 +751,41 @@ function getAssessmentCandidates(candidate) {
   return [];
 }
 
-export function loadAppliedAssessment(storage) {
+function getExpectedAssessmentCheckinPath(assessmentPath) {
+  if (typeof assessmentPath !== 'string' || !assessmentPath.endsWith('/assessment.json')) {
+    return '';
+  }
+
+  return assessmentPath.slice(0, -'/assessment.json'.length);
+}
+
+function isValidAssessmentCandidate(candidate) {
+  if (!validateAssessment(candidate).valid) {
+    return false;
+  }
+
+  if (typeof candidate?.assessmentPath !== 'string') {
+    return true;
+  }
+
+  return candidate.checkinPath === getExpectedAssessmentCheckinPath(candidate.assessmentPath);
+}
+
+function sortAssessmentsNewestFirst(assessments) {
+  return [...assessments].sort((a, b) => {
+    const dateCompare = `${b?.assessmentDate || ''}`.localeCompare(`${a?.assessmentDate || ''}`);
+    if (dateCompare !== 0) return dateCompare;
+    return `${b?.checkinPath || ''}`.localeCompare(`${a?.checkinPath || ''}`);
+  });
+}
+
+export function loadAssessmentHistory(storage) {
   const candidate = loadJson(storage, APPLIED_ASSESSMENT_KEY, null);
-  return selectLatestValidAssessment(getAssessmentCandidates(candidate));
+  return sortAssessmentsNewestFirst(getAssessmentCandidates(candidate).filter(isValidAssessmentCandidate));
+}
+
+export function loadAppliedAssessment(storage) {
+  return selectLatestValidAssessment(loadAssessmentHistory(storage));
 }
 
 function getGuidanceContext(assessment) {
@@ -772,11 +808,13 @@ function buildContext() {
   const recoveryDay = computeRecoveryDay(todayIso, settings.procedureDate);
   const targets = buildDailyTargets(recoveryDay, settings.acyclovirPerDay);
   const state = loadDailyState(window.localStorage, todayIso, targets);
-  const assessment = loadAppliedAssessment(window.localStorage);
+  const assessmentHistory = loadAssessmentHistory(window.localStorage);
+  const assessment = selectLatestValidAssessment(assessmentHistory);
   const { guidance, provenance } = getGuidanceContext(assessment);
 
   return {
     assessment,
+    assessmentHistory,
     guidance,
     procedureDate: settings.procedureDate,
     provenance,
@@ -878,7 +916,13 @@ function renderSettingsRoute(root, context) {
 function render(route = getRoute()) {
   const root = document.querySelector('#app');
   const title = document.querySelector('#screen-title');
-  const labels = { today: 'Today', log: 'Log', guide: 'Guide', settings: 'Settings' };
+  const labels = {
+    today: 'Today',
+    log: 'Log',
+    assessments: 'Assessments',
+    guide: 'Guide',
+    settings: 'Settings'
+  };
   const context = buildContext();
 
   title.textContent = labels[route];
@@ -889,6 +933,10 @@ function render(route = getRoute()) {
     updateSyncStatusText('Ready');
   } else if (route === 'log') {
     void renderLogRoute(root, context);
+  } else if (route === 'assessments') {
+    revokeLogPreviewUrls();
+    renderAssessments(root, context);
+    updateSyncStatusText('Ready');
   } else if (route === 'guide') {
     revokeLogPreviewUrls();
     renderGuide(root, context);
@@ -1154,7 +1202,7 @@ async function applySyncedAssessment() {
     const assessment = await syncLatestAssessment(nextSettings);
     setSettingsUiState({
       busyAction: '',
-      syncMessage: `Applied Codex assessment from ${assessment.assessmentDate}.`,
+      syncMessage: `Synced Codex assessments through ${assessment.assessmentDate}.`,
       syncTone: 'ok'
     });
   } catch (error) {

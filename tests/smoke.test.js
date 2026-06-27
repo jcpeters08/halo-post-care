@@ -40,9 +40,9 @@ describe('project shell', () => {
     assert.match(html, /connect-src https:\/\/api\.github\.com/);
   });
 
-  it('defines the four primary routes in the app shell', async () => {
+  it('defines the primary routes in the app shell', async () => {
     const html = await readFile('index.html', 'utf8');
-    for (const route of ['today', 'log', 'guide', 'settings']) {
+    for (const route of ['today', 'log', 'assessments', 'guide', 'settings']) {
       assert.match(html, new RegExp(`data-route="${route}"`));
     }
   });
@@ -171,7 +171,7 @@ describe('project shell', () => {
       }
     });
 
-    assert.match(root.innerHTML, /Sync latest Codex assessment/);
+    assert.match(root.innerHTML, /Sync Codex assessments/);
     assert.match(root.innerHTML, /Applied Codex assessment date: 2026-06-27/);
     assert.match(root.innerHTML, /Last Codex assessment file: checkins\/2026-06-27\/2030\/assessment\.json/);
   });
@@ -209,6 +209,94 @@ describe('project shell', () => {
     assert.match(root.innerHTML, /Increasing heat and swelling/);
     assert.match(root.innerHTML, /Pain spreading beyond treated area/);
     assert.ok(root.innerHTML.indexOf('Codex safety alert') < root.innerHTML.indexOf('Codex guidance'));
+  });
+
+  it('renders the latest Codex photo assessment details on Today', async () => {
+    const { renderToday } = await import('../js/ui/today.js');
+    const root = { innerHTML: '' };
+    const targets = buildDailyTargets(1, 2);
+
+    renderToday(root, {
+      todayIso: '2026-06-27',
+      recoveryDay: 1,
+      stage: getStageForDay(1),
+      timeline: getTimelineForDay(1),
+      targets,
+      state: {
+        am: { cleanse: false, thermal_water: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        counters: { hocl: 0, cicalfate: 0, spf: 0, acyclovir: 0, heliocare: 0 },
+        flags: { elevated: false, coldCompress: false }
+      },
+      guidance: getDefaultGuidance(),
+      provenance: 'Codex assessment from 2026-06-27',
+      assessment: {
+        assessmentDate: '2026-06-27',
+        checkinPath: 'checkins/2026-06-27/1702',
+        overall: {
+          status: 'on_track',
+          confidence: 'medium',
+          summary: 'Recovery day 1 photos look consistent with the expected red, warm, tight phase.'
+        },
+        observations: [
+          { area: 'face', severity: 'expected', note: 'Diffuse redness across the face.' },
+          { area: 'neck', severity: 'watch', note: 'Central neck redness should trend calmer.' }
+        ],
+        safety: { callClinic: false, urgency: 'routine', reasons: [] },
+        nextActions: ['Upload another check-in tomorrow.']
+      }
+    });
+
+    assert.match(root.innerHTML, /Photo assessment/);
+    assert.match(root.innerHTML, /Recovery day 1 photos look consistent/);
+    assert.match(root.innerHTML, /Face/);
+    assert.match(root.innerHTML, /Diffuse redness across the face/);
+    assert.match(root.innerHTML, /Neck/);
+    assert.match(root.innerHTML, /Central neck redness should trend calmer/);
+    assert.match(root.innerHTML, /Upload another check-in tomorrow/);
+  });
+
+  it('renders historical Codex photo assessments newest first', async () => {
+    const { renderAssessments } = await import('../js/ui/assessments.js');
+    const root = { innerHTML: '' };
+
+    renderAssessments(root, {
+      assessmentHistory: [
+        {
+          assessmentDate: '2026-06-27',
+          checkinPath: 'checkins/2026-06-27/1702',
+          overall: {
+            status: 'watch',
+            confidence: 'medium',
+            summary: 'Day 1 had expected redness.'
+          },
+          observations: [
+            { area: 'face', severity: 'expected', note: 'Diffuse redness.' }
+          ],
+          safety: { callClinic: false, urgency: 'routine', reasons: [] },
+          nextActions: ['Keep barrier routine.']
+        },
+        {
+          assessmentDate: '2026-06-28',
+          checkinPath: 'checkins/2026-06-28/0840',
+          overall: {
+            status: 'on_track',
+            confidence: 'high',
+            summary: 'Redness is settling.'
+          },
+          observations: [
+            { area: 'face', severity: 'expected', note: 'Less diffuse redness.' }
+          ],
+          safety: { callClinic: false, urgency: 'routine', reasons: [] },
+          nextActions: ['Continue SPF.']
+        }
+      ]
+    });
+
+    assert.match(root.innerHTML, /Assessment history/);
+    assert.match(root.innerHTML, /Redness is settling/);
+    assert.match(root.innerHTML, /Day 1 had expected redness/);
+    assert.ok(root.innerHTML.indexOf('Redness is settling') < root.innerHTML.indexOf('Day 1 had expected redness'));
   });
 
   it('disables all settings actions while a settings operation is in flight', async () => {
@@ -583,6 +671,39 @@ describe('Task 7 storage hardening', () => {
     const assessment = loadAppliedAssessment(storage);
 
     assert.equal(assessment?.assessmentDate, '2026-06-29');
+  });
+
+  it('loads valid cached assessment history newest first', async () => {
+    const { loadAssessmentHistory } = await import('../js/app.js');
+    const storage = createStorage({
+      halo_applied_assessment_v1: {
+        assessments: [
+          {
+            schemaVersion: 1,
+            assessmentDate: '2026-06-27',
+            checkinPath: 'checkins/2026-06-27',
+            overall: { status: 'watch', confidence: 'medium', summary: 'Monitor.' },
+            guidance: getDefaultGuidance(),
+            safety: { callClinic: false, urgency: 'monitor' },
+            nextActions: []
+          },
+          { foo: 'bar' },
+          {
+            schemaVersion: 1,
+            assessmentDate: '2026-06-29',
+            checkinPath: 'checkins/2026-06-29',
+            overall: { status: 'on_track', confidence: 'high', summary: 'Improving.' },
+            guidance: getDefaultGuidance(),
+            safety: { callClinic: false, urgency: 'routine' },
+            nextActions: []
+          }
+        ]
+      }
+    });
+
+    const history = loadAssessmentHistory(storage);
+
+    assert.deepEqual(history.map((entry) => entry.assessmentDate), ['2026-06-29', '2026-06-27']);
   });
 
   it('ignores malformed cached assessments and falls back to null', () => {
