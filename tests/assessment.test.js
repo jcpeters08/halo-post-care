@@ -6,6 +6,7 @@ import {
   selectLatestValidAssessment,
   validateAssessment
 } from '../js/assessment.js';
+import { GUIDANCE_GROUPS } from '../js/data.js';
 
 const validAssessment = {
   schemaVersion: 1,
@@ -46,6 +47,23 @@ describe('assessment contract', () => {
   });
 
   it('provides all default guidance groups', () => {
-    assert.deepEqual(Object.keys(getDefaultGuidance()), ['exercise', 'heatColdExposure', 'actives', 'cosmeticsCoverage']);
+    const default1 = getDefaultGuidance();
+    const default2 = getDefaultGuidance();
+
+    assert.deepEqual(Object.keys(default1), Object.keys(GUIDANCE_GROUPS));
+    assert.deepEqual(default1, GUIDANCE_GROUPS);
+    assert.notStrictEqual(default1, default2);
+    assert.notStrictEqual(default1.exercise, default2.exercise);
+    assert.notStrictEqual(default1.heatColdExposure, default2.heatColdExposure);
+    assert.notStrictEqual(default1.actives, default2.actives);
+    assert.notStrictEqual(default1.cosmeticsCoverage, default2.cosmeticsCoverage);
+
+    default1.exercise.title = 'Modified for test';
+    assert.notStrictEqual(getDefaultGuidance().exercise.title, default1.exercise.title);
+  });
+
+  it('rejects malformed assessmentDate', () => {
+    const invalidDate = { ...validAssessment, assessmentDate: 'June 27' };
+    assert.equal(validateAssessment(invalidDate).valid, false);
   });
 });

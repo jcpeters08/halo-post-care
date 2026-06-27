@@ -1,9 +1,12 @@
+import { GUIDANCE_GROUPS } from './data.js';
+
 export const GUIDANCE_KEYS = ['exercise', 'heatColdExposure', 'actives', 'cosmeticsCoverage'];
 
 const ASSESSMENT_SCHEMA_VERSION = 1;
 const OVERALL_STATUSES = new Set(['on_track', 'watch', 'concern', 'call_clinic']);
 const OVERALL_CONFIDENCE = new Set(['low', 'medium', 'high']);
 const URGENCY_VALUES = new Set(['routine', 'monitor', 'call_clinic', 'urgent']);
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -15,6 +18,35 @@ function hasString(value) {
 
 function hasStringOrUndefined(value) {
   return value === undefined || typeof value === 'string';
+}
+
+function isIsoDate(value) {
+  if (!ISO_DATE_PATTERN.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+  const [year, month, day] = value.split('-').map(Number);
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month &&
+    date.getUTCDate() === day
+  );
+}
+
+function cloneGuidanceGroups(source) {
+  const clone = {};
+
+  for (const key of GUIDANCE_KEYS) {
+    const value = source[key];
+
+    if (isPlainObject(value)) {
+      clone[key] = { ...value };
+    }
+  }
+
+  return clone;
 }
 
 function validateGuidance(value) {
@@ -49,6 +81,8 @@ export function validateAssessment(value) {
 
   if (!hasString(value.assessmentDate)) {
     errors.push('assessmentDate must be a non-empty string');
+  } else if (!isIsoDate(value.assessmentDate)) {
+    errors.push('assessmentDate must be YYYY-MM-DD');
   }
 
   if (!hasString(value.checkinPath)) {
@@ -124,30 +158,5 @@ export function selectLatestValidAssessment(entries) {
 }
 
 export function getDefaultGuidance() {
-  return {
-    exercise: {
-      status: 'follow_plan',
-      title: 'Keep activity light',
-      details: 'Choose low-intensity activity and stop if skin feels irritated.',
-      reviewAfter: 'next_checkin'
-    },
-    heatColdExposure: {
-      status: 'avoid',
-      title: 'Limit heat and cold extremes',
-      details: 'Avoid saunas, hot showers, and very cold exposure until skin settles.',
-      reviewAfter: 'next_checkin'
-    },
-    actives: {
-      status: 'avoid',
-      title: 'Hold actives',
-      details: 'Do not restart acids, retinoids, benzoyl peroxide, or vitamin C yet.',
-      reviewAfter: 'next_checkin'
-    },
-    cosmeticsCoverage: {
-      status: 'limited',
-      title: 'Use light coverage only',
-      details: 'Tinted SPF and non-occlusive products first, then expand as tolerated.',
-      reviewAfter: 'next_checkin'
-    }
-  };
+  return cloneGuidanceGroups(GUIDANCE_GROUPS);
 }
