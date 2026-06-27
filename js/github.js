@@ -4,6 +4,13 @@ const API_HEADERS = {
   'X-GitHub-Api-Version': '2022-11-28'
 };
 
+const textEncoder = typeof TextEncoder === 'function'
+  ? new TextEncoder()
+  : null;
+const textDecoder = typeof TextDecoder === 'function'
+  ? new TextDecoder()
+  : null;
+
 export class GitHubSettingsError extends Error {
   constructor(message) {
     super(message);
@@ -12,7 +19,58 @@ export class GitHubSettingsError extends Error {
 }
 
 export function encodeBase64(content) {
-  return Buffer.from(`${content ?? ''}`, 'utf8').toString('base64');
+  const bytes = stringToUtf8Bytes(`${content ?? ''}`);
+  return encodeBytesToBase64(bytes);
+}
+
+function stringToUtf8Bytes(value) {
+  if (textEncoder) {
+    return textEncoder.encode(value);
+  }
+
+  if (typeof Buffer === 'undefined' || typeof Buffer.from !== 'function') {
+    throw new Error('TextEncoder unavailable');
+  }
+
+  return Buffer.from(value, 'utf8');
+}
+
+function encodeBytesToBase64(bytes) {
+  if (typeof btoa === 'function') {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+    return Buffer.from(bytes).toString('base64');
+  }
+
+  throw new Error('No base64 encoder available');
+}
+
+function decodeBase64ToString(value) {
+  const input = stripBase64Whitespace(`${value ?? ''}`);
+  if (!input) {
+    return '';
+  }
+
+  if (typeof atob === 'function' && textDecoder) {
+    const binary = atob(input);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return textDecoder.decode(bytes);
+  }
+
+  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+    return Buffer.from(input, 'base64').toString('utf8');
+  }
+
+  throw new Error('No base64 decoder available');
 }
 
 function assertGitHubSettings(settings) {
@@ -107,7 +165,7 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
       throw new Error(`GitHub API did not return file content for ${path}`);
     }
 
-    const decoded = Buffer.from(stripBase64Whitespace(payload.content), 'base64').toString('utf8');
+    const decoded = decodeBase64ToString(payload.content);
     return JSON.parse(decoded);
   }
 
@@ -120,6 +178,10 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
   }
 
   async function putFile(path, content, message) {
+    return putFileBase64(path, encodeBase64(content), message);
+  }
+
+  async function putFileBase64(path, base64Content, message) {
     await request(fetchImpl, {
       url: buildContentsUrl(githubOwner, dataRepo, path),
       options: {
@@ -127,7 +189,7 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
         headers,
         body: JSON.stringify({
           message,
-          content: encodeBase64(content)
+          content: base64Content
         })
       }
     });
@@ -155,7 +217,7 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
     await putFile(`${path}/manifest.json`, JSON.stringify(manifest ?? {}, null, 2), 'Add manifest');
 
     for (const [fileName, fileContent] of Object.entries(files ?? {})) {
-      await putFile(`${path}/${fileName}`, fileContent, `Add ${fileName}`);
+      await putFileBase64(`${path}/${fileName}`, `${fileContent}`, `Add ${fileName}`);
     }
 
     await putFile(`${path}/complete.json`, JSON.stringify(complete ?? {}, null, 2), 'Add complete marker');
