@@ -59,7 +59,7 @@ function renderContacts() {
   return CLINIC_CONTACTS.map(
     (contact) => `
       <li>
-        <strong>${escapeHtml(contact.label)}</strong>: ${escapeHtml(contact.phone)}
+        <strong>${escapeHtml(contact.label)}</strong>: <a href="tel:${escapeHtml(contact.phone)}">${escapeHtml(contact.phone)}</a>
       </li>
     `
   ).join('');

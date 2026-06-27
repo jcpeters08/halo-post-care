@@ -84,3 +84,55 @@ as the requirements source.
 
 ## Commit
 - Commit created with subject `Build Today and Guide views`.
+
+## Task 7 Review Fixes
+
+### Scope
+Addressed the Task 7 review findings in:
+
+- `js/app.js`
+- `js/ui/today.js`
+- `js/ui/guide.js`
+- `tests/smoke.test.js`
+
+### What I changed
+- Updated cached assessment loading to select the newest valid assessment with
+  `selectLatestValidAssessment()` instead of treating one stored object as
+  authoritative.
+- Kept compatibility with the existing single-object cache shape and added
+  support for cached arrays plus `history` / `assessments` wrapper shapes.
+- Ignored invalid cached assessment entries and preserved default guidance
+  fallback when no valid assessment is available.
+- Added daily state normalization so stored state is merged back into the
+  current `createDailyState(targets)` shape before Today uses it.
+- Backfilled missing `am`, `pm`, `counters`, and `flags` keys on rehydrate.
+- Normalized counters to non-negative integers and flags/step values to
+  booleans, falling back to target defaults where appropriate.
+- Added `aria-pressed` to checklist row buttons.
+- Changed Guide clinic phone numbers to `tel:` links.
+
+### Focused test coverage
+- Added a regression test proving the app selects the newest valid cached
+  assessment from a mixed cached history.
+- Added a regression test proving invalid cached assessment entries fall back to
+  `null`.
+- Added a regression test proving malformed stored daily state is normalized and
+  backfilled to the current target shape.
+- Extended the renderer smoke test to assert checklist `aria-pressed` output and
+  `tel:` clinic links.
+
+### Validation
+- Red step:
+  - `npm test -- tests/smoke.test.js` -> fail 1 (`app.js` did not yet export the
+    storage helpers under test)
+- Green step:
+  - `npm test -- tests/smoke.test.js` -> pass 42
+- Fresh final verification:
+  - `npm test` -> pass 42
+
+### Local runtime check
+- Started a temporary local server at `http://127.0.0.1:4173/`.
+- Confirmed a browser load hit the app successfully from the server logs.
+- Could not complete interactive browser inspection because the Computer Use
+  bridge was blocked by pending macOS Accessibility / Screen Recording
+  permissions.

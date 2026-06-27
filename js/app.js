@@ -1,4 +1,8 @@
-import { getDefaultGuidance, validateAssessment } from './assessment.js';
+import {
+  getDefaultGuidance,
+  selectLatestValidAssessment,
+  validateAssessment
+} from './assessment.js';
 import {
   createDailyState,
   setCounterValue,
@@ -39,11 +43,72 @@ function createInitialDailyState(targets) {
   return state;
 }
 
-function loadDailyState(storage, todayIso, targets) {
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeRoutineState(storedRoutine, targetItems) {
+  return Object.fromEntries(
+    targetItems.map((item) => [item.id, storedRoutine?.[item.id] === true])
+  );
+}
+
+function normalizeCounterState(storedCounters, targets) {
+  return Object.fromEntries(
+    Object.keys(targets).map((counterId) => {
+      const value = storedCounters?.[counterId];
+      const parsed = Number(value);
+      const normalized = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+      return [counterId, normalized];
+    })
+  );
+}
+
+function normalizeFlagState(storedFlags, targets, defaults) {
+  return Object.fromEntries(
+    Object.keys(targets).map((flagId) => {
+      const value = storedFlags?.[flagId];
+      if (typeof value === 'boolean') {
+        return [flagId, value];
+      }
+
+      return [flagId, defaults[flagId]];
+    })
+  );
+}
+
+export function normalizeDailyState(storedState, targets) {
+  const initialState = createInitialDailyState(targets);
+
+  if (!isPlainObject(storedState)) {
+    return initialState;
+  }
+
+  return {
+    am: normalizeRoutineState(isPlainObject(storedState.am) ? storedState.am : null, targets.am),
+    pm: normalizeRoutineState(isPlainObject(storedState.pm) ? storedState.pm : null, targets.pm),
+    counters: normalizeCounterState(
+      isPlainObject(storedState.counters) ? storedState.counters : null,
+      targets.counters
+    ),
+    flags: normalizeFlagState(
+      isPlainObject(storedState.flags) ? storedState.flags : null,
+      targets.flags,
+      initialState.flags
+    )
+  };
+}
+
+export function loadDailyState(storage, todayIso, targets) {
   const byDate = loadJson(storage, DAILY_STATE_KEY, {});
 
   if (byDate && typeof byDate === 'object' && !Array.isArray(byDate) && byDate[todayIso]) {
-    return byDate[todayIso];
+    const normalized = normalizeDailyState(byDate[todayIso], targets);
+    saveJson(storage, DAILY_STATE_KEY, {
+      ...byDate,
+      [todayIso]: normalized
+    });
+    return normalized;
   }
 
   const state = createInitialDailyState(targets);
@@ -62,13 +127,33 @@ function saveDailyState(storage, todayIso, state) {
   });
 }
 
-function loadAppliedAssessment(storage) {
-  const candidate = loadJson(storage, APPLIED_ASSESSMENT_KEY, null);
-  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-    return null;
+function getAssessmentCandidates(candidate) {
+  if (Array.isArray(candidate)) {
+    return candidate;
   }
 
-  return validateAssessment(candidate).valid ? candidate : null;
+  if (validateAssessment(candidate).valid) {
+    return [candidate];
+  }
+
+  if (!isPlainObject(candidate)) {
+    return [];
+  }
+
+  if (Array.isArray(candidate.history)) {
+    return candidate.history;
+  }
+
+  if (Array.isArray(candidate.assessments)) {
+    return candidate.assessments;
+  }
+
+  return [];
+}
+
+export function loadAppliedAssessment(storage) {
+  const candidate = loadJson(storage, APPLIED_ASSESSMENT_KEY, null);
+  return selectLatestValidAssessment(getAssessmentCandidates(candidate));
 }
 
 function getGuidanceContext(assessment) {
@@ -154,56 +239,58 @@ function mutateDailyState(mutator) {
   render();
 }
 
-document.addEventListener('click', (event) => {
-  const routeButton = event.target.closest('[data-route]');
-  if (routeButton) {
-    window.location.hash = routeButton.dataset.route;
-    return;
-  }
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  document.addEventListener('click', (event) => {
+    const routeButton = event.target.closest('[data-route]');
+    if (routeButton) {
+      window.location.hash = routeButton.dataset.route;
+      return;
+    }
 
-  const actionTarget = event.target.closest('[data-action]');
-  if (!actionTarget) {
-    return;
-  }
+    const actionTarget = event.target.closest('[data-action]');
+    if (!actionTarget) {
+      return;
+    }
 
-  const { action } = actionTarget.dataset;
+    const { action } = actionTarget.dataset;
 
-  if (action === 'toggle-step') {
-    mutateDailyState((state) =>
-      toggleRoutineStep(state, actionTarget.dataset.period, actionTarget.dataset.stepId)
-    );
-    return;
-  }
+    if (action === 'toggle-step') {
+      mutateDailyState((state) =>
+        toggleRoutineStep(state, actionTarget.dataset.period, actionTarget.dataset.stepId)
+      );
+      return;
+    }
 
-  if (action === 'counter-dec' || action === 'counter-inc') {
-    const delta = action === 'counter-inc' ? 1 : -1;
-    mutateDailyState((state) =>
-      setCounterValue(
-        state,
-        actionTarget.dataset.counterId,
-        (state.counters[actionTarget.dataset.counterId] ?? 0) + delta
-      )
-    );
-    return;
-  }
+    if (action === 'counter-dec' || action === 'counter-inc') {
+      const delta = action === 'counter-inc' ? 1 : -1;
+      mutateDailyState((state) =>
+        setCounterValue(
+          state,
+          actionTarget.dataset.counterId,
+          (state.counters[actionTarget.dataset.counterId] ?? 0) + delta
+        )
+      );
+      return;
+    }
 
-  if (action === 'set-flag') {
-    mutateDailyState((state) =>
-      setFlagValue(
-        state,
-        actionTarget.dataset.flagId,
-        !(state.flags[actionTarget.dataset.flagId] ?? false)
-      )
-    );
-  }
-});
-
-window.addEventListener('hashchange', () => render());
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    if (action === 'set-flag') {
+      mutateDailyState((state) =>
+        setFlagValue(
+          state,
+          actionTarget.dataset.flagId,
+          !(state.flags[actionTarget.dataset.flagId] ?? false)
+        )
+      );
+    }
   });
-}
 
-render();
+  window.addEventListener('hashchange', () => render());
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  render();
+}

@@ -12,6 +12,7 @@ function renderRoutine(period, items, state, summary) {
           data-action="toggle-step"
           data-period="${period}"
           data-step-id="${escapeHtml(item.id)}"
+          aria-pressed="${complete ? 'true' : 'false'}"
         >
           <span class="checklist-row__state" aria-hidden="true">${complete ? 'Done' : 'Tap'}</span>
           <span class="checklist-row__copy">
