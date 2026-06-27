@@ -1090,6 +1090,10 @@ function resetSettingsFeedback() {
   });
 }
 
+function isSettingsActionBlocked() {
+  return Boolean(settingsUiState.busyAction);
+}
+
 function persistSettingsFromForm() {
   const nextSettings = mergeSettingsDraft(readSettingsForm());
   saveSettings(window.localStorage, nextSettings);
@@ -1150,13 +1154,13 @@ async function applySyncedAssessment() {
     const assessment = await syncLatestAssessment(nextSettings);
     setSettingsUiState({
       busyAction: '',
-      syncMessage: `Applied assessment from ${assessment.assessmentDate}.`,
+      syncMessage: `Applied Codex assessment from ${assessment.assessmentDate}.`,
       syncTone: 'ok'
     });
   } catch (error) {
     setSettingsUiState({
       busyAction: '',
-      syncMessage: error.message || 'Assessment sync failed.',
+      syncMessage: error.message || 'Codex assessment sync failed.',
       syncTone: 'warning'
     });
   }
@@ -1268,26 +1272,41 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     }
 
     if (action === 'save-settings') {
+      if (isSettingsActionBlocked()) {
+        return;
+      }
       persistSettingsFromForm();
       return;
     }
 
     if (action === 'test-connection') {
+      if (isSettingsActionBlocked()) {
+        return;
+      }
       void testSettingsConnection();
       return;
     }
 
     if (action === 'sync-assessment') {
+      if (isSettingsActionBlocked()) {
+        return;
+      }
       void applySyncedAssessment();
       return;
     }
 
     if (action === 'export-data') {
+      if (isSettingsActionBlocked()) {
+        return;
+      }
       exportLocalData();
       return;
     }
 
     if (action === 'reset-data') {
+      if (isSettingsActionBlocked()) {
+        return;
+      }
       void resetLocalData();
     }
   });

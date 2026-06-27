@@ -140,6 +140,53 @@ describe('project shell', () => {
     assert.equal(prepareState.disabled, false);
     assert.equal(prepareState.reason, 'ready');
   });
+
+  it('renders Codex assessment copy in settings', async () => {
+    const { renderSettings } = await import('../js/ui/settings.js');
+    const root = { innerHTML: '' };
+
+    renderSettings(root, {
+      settings: {
+        procedureDate: '2026-06-27',
+        acyclovirPerDay: 2,
+        githubOwner: 'jcpeters08',
+        dataRepo: 'halo-post-care-data',
+        token: '',
+        lastAssessmentPath: 'checkins/2026-06-27/2030/assessment.json'
+      },
+      appliedAssessment: {
+        assessmentDate: '2026-06-27'
+      }
+    });
+
+    assert.match(root.innerHTML, /Sync latest Codex assessment/);
+    assert.match(root.innerHTML, /Applied Codex assessment date: 2026-06-27/);
+    assert.match(root.innerHTML, /Last Codex assessment file: checkins\/2026-06-27\/2030\/assessment\.json/);
+  });
+
+  it('disables all settings actions while a settings operation is in flight', async () => {
+    const { renderSettings } = await import('../js/ui/settings.js');
+    const root = { innerHTML: '' };
+
+    renderSettings(root, {
+      settings: {
+        procedureDate: '',
+        acyclovirPerDay: 2,
+        githubOwner: 'jcpeters08',
+        dataRepo: 'halo-post-care-data',
+        token: '',
+        lastAssessmentPath: ''
+      },
+      busyAction: 'sync-assessment',
+      resetConfirming: true
+    });
+
+    assert.match(root.innerHTML, /data-action="save-settings"[\s\S]*disabled/);
+    assert.match(root.innerHTML, /data-action="test-connection"[\s\S]*disabled/);
+    assert.match(root.innerHTML, /data-action="sync-assessment"[\s\S]*disabled/);
+    assert.match(root.innerHTML, /data-action="export-data"[\s\S]*disabled/);
+    assert.match(root.innerHTML, /data-action="reset-data"[\s\S]*disabled/);
+  });
 });
 
 describe('Task 8 repo-backed duplicate detection', () => {

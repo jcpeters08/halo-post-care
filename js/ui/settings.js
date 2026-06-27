@@ -22,17 +22,18 @@ export function renderSettings(root, viewModel) {
     appliedAssessment = null
   } = viewModel;
 
-  const disableSave = busyAction === 'save-settings';
-  const disableConnection = busyAction === 'test-connection';
-  const disableSync = busyAction === 'sync-assessment';
-  const disableExport = busyAction === 'export-data';
-  const disableReset = busyAction === 'reset-data';
+  const isBusy = Boolean(busyAction);
+  const disableSave = isBusy;
+  const disableConnection = isBusy;
+  const disableSync = isBusy;
+  const disableExport = isBusy;
+  const disableReset = isBusy;
   const assessmentDate = typeof appliedAssessment?.assessmentDate === 'string'
     ? appliedAssessment.assessmentDate
     : 'None synced';
   const assessmentPath = typeof settings?.lastAssessmentPath === 'string' && settings.lastAssessmentPath
     ? settings.lastAssessmentPath
-    : 'No assessment file applied yet.';
+    : 'No Codex assessment file applied yet.';
 
   root.innerHTML = `
     <div class="stack-lg">
@@ -137,13 +138,13 @@ export function renderSettings(root, viewModel) {
             type="button"
             data-action="sync-assessment"
             ${disableSync ? 'disabled' : ''}
-          >${disableSync ? 'Syncing...' : 'Sync latest assessment'}</button>
+          >${busyAction === 'sync-assessment' ? 'Syncing Codex assessment...' : 'Sync latest Codex assessment'}</button>
         </div>
         ${renderStatusNote(connectionMessage, connectionTone)}
         ${renderStatusNote(syncMessage, syncTone)}
         <div class="stack-xxs">
-          <p class="meta-text">Applied assessment date: ${escapeHtml(assessmentDate)}</p>
-          <p class="meta-text">Last assessment file: ${escapeHtml(assessmentPath)}</p>
+          <p class="meta-text">Applied Codex assessment date: ${escapeHtml(assessmentDate)}</p>
+          <p class="meta-text">Last Codex assessment file: ${escapeHtml(assessmentPath)}</p>
         </div>
       </section>
 

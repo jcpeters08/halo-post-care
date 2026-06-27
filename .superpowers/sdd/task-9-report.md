@@ -70,3 +70,23 @@ Stopped the local server after the check.
 ## Notes / concerns
 
 - In Safari, export triggers the browser’s standard “allow downloads on localhost” permission prompt the first time. The app still generates the download payload and success banner correctly; the prompt is browser policy rather than app logic.
+
+## Task 9 Fix Report
+
+### Files changed
+
+- `/Users/jonathanpeters/Git/halo-post-care/js/app.js`
+- `/Users/jonathanpeters/Git/halo-post-care/js/ui/settings.js`
+- `/Users/jonathanpeters/Git/halo-post-care/tests/smoke.test.js`
+- `/Users/jonathanpeters/Git/halo-post-care/.superpowers/sdd/task-9-report.md`
+
+### Commands run
+
+- `npm test -- --test-reporter=dot`
+
+### Results
+
+- Added focused smoke coverage for the Settings copy and shared busy-state disabling.
+- Updated the Settings sync/apply surface to consistently say `Codex assessment` while preserving existing IDs, file names, and storage keys.
+- Blocked overlapping Settings actions by disabling the full Settings action surface during any in-flight async Settings operation and guarding action handlers against clicks while busy.
+- `npm test -- --test-reporter=dot` passed with 58 tests passing and 0 failing.
