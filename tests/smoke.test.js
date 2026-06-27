@@ -54,6 +54,11 @@ describe('project shell', () => {
     }
   });
 
+  it('awaits runtime cache writes before returning same-origin GET responses', async () => {
+    const sw = await readFile('sw.js', 'utf8');
+    assert.match(sw, /await cache\.put\(event\.request,\s*response\.clone\(\)\)/);
+  });
+
   it('renders the Today and Guide views with recovery content', async () => {
     const [{ renderToday }, { renderGuide }] = await Promise.all([
       import('../js/ui/today.js'),

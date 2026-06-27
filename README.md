@@ -46,14 +46,16 @@ The app stores a fine-grained personal access token in `localStorage`, so keep t
 3. On the Mac, tell Codex there is a new check-in in `halo-post-care-data`.
 4. Codex reviews the latest completed check-in folder and writes both `assessment.json` and `assessment.md` into that same folder.
 5. Codex commits and pushes the private repo changes.
-6. Back in the app, use `Sync latest Codex assessment` so the newest valid `assessment.json` is applied.
+6. After Codex pushes `assessment.json` and `assessment.md`, the app checks for the latest Codex assessment and automatically applies the newest valid `assessment.json`.
+7. If the latest assessment does not appear right away, use `Sync latest Codex assessment` in Settings as a manual refresh.
 
 ## Warnings and Boundaries
 
 - The public repo must contain only code, docs, and contracts.
 - Never commit photos, raw symptom logs, or uploaded check-in folders to the public repo.
 - Network calls must stay limited to `https://api.github.com`.
-- Provider instructions and clinic guidance override anything in the app or in a Codex assessment.
+- Provider instructions and clinic guidance remain the safety guardrails for this recovery plan.
+- Codex may adjust practical day-to-day guidance over time based on the latest photos and symptoms, but it must stay within those provider and clinic guardrails.
 
 ## Revoke the Token
 

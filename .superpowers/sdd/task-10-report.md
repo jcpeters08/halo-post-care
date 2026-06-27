@@ -58,3 +58,27 @@ Manual check not fully performed:
 ## Concerns
 
 - The runtime network limitation was validated indirectly for GitHub sync behavior because a real authenticated sync was not exercised in the manual pass.
+
+## Task 10 Fix Report
+
+### Files Changed
+
+- `README.md`
+- `sw.js`
+- `tests/smoke.test.js`
+
+### Commands Run
+
+1. `npm test -- --test-reporter=dot`
+   - Result: FAIL
+   - Purpose: verify the new service-worker regression test fails before the production fix.
+2. `npm test -- --test-reporter=dot`
+   - Result: PASS (`60` tests passed, `0` failed)
+   - Purpose: verify the scoped README and service-worker fixes on the required command.
+
+### Results
+
+- README daily workflow now states that once Codex pushes `assessment.json` and `assessment.md`, the app checks for and automatically applies the newest valid Codex assessment, while keeping `Sync latest Codex assessment` as a manual refresh path in Settings.
+- README warning now distinguishes provider and clinic instructions as the safety guardrails, with Codex limited to adjusting practical day-to-day guidance within those bounds.
+- `sw.js` now awaits the same-origin runtime `cache.put()` before returning the fetched response, so successful cache writes are not dropped if the service worker is terminated early.
+- Added focused smoke coverage to lock in the awaited runtime cache-write contract.
