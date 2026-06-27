@@ -56,4 +56,14 @@ describe('storage helpers', () => {
     resetAll(storage);
     assert.equal(loadSettings(storage).token, '');
   });
+
+  it('stores exported applied assessment state with app-owned keys', () => {
+    const storage = fakeStorage();
+    storage.setItem(
+      'halo_applied_assessment_v1',
+      JSON.stringify({ checkinPath: 'checkins/x', assessmentDate: '2026-06-27' })
+    );
+
+    assert.equal(exportAll(storage).halo_applied_assessment_v1.checkinPath, 'checkins/x');
+  });
 });

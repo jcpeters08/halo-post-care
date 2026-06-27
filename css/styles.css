@@ -528,6 +528,93 @@ h1 {
   color: var(--muted);
 }
 
+.settings-form,
+.field {
+  width: 100%;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.field--full {
+  grid-column: 1 / -1;
+}
+
+.text-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.button-primary,
+.button-secondary,
+.button-danger {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.button-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.button-secondary {
+  background: var(--surface-strong);
+  border-color: var(--line);
+}
+
+.button-danger {
+  background: var(--warning-soft);
+  border-color: #ebc4bb;
+  color: var(--warning);
+}
+
+.button-primary:disabled,
+.button-secondary:disabled,
+.button-danger:disabled {
+  color: var(--muted);
+  background: var(--surface-strong);
+  border-color: var(--line);
+}
+
+.status-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.status-note.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.status-note.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .is-ok {
   background: var(--ok-soft);
   color: var(--ok);
@@ -579,7 +666,11 @@ h1 {
 .file-field:focus-within,
 .score-chip input:focus-visible + span,
 .note-input:focus-visible,
-.primary-button:focus-visible {
+.primary-button:focus-visible,
+.button-primary:focus-visible,
+.button-secondary:focus-visible,
+.button-danger:focus-visible,
+.text-input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -610,6 +701,10 @@ h1 {
     grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
     align-items: center;
   }
+
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -623,7 +718,10 @@ h1 {
 
   .counter-controls,
   .call-link--inline,
-  .primary-button {
+  .primary-button,
+  .button-primary,
+  .button-secondary,
+  .button-danger {
     width: 100%;
   }
 }

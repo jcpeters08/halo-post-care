@@ -32,9 +32,18 @@ import {
   PHOTO_AREAS,
   savePhotoDraft
 } from './photos.js';
-import { loadSettings, loadJson, saveJson } from './storage.js';
+import {
+  DEFAULT_SETTINGS,
+  exportAll,
+  loadSettings,
+  loadJson,
+  resetAll,
+  saveJson,
+  saveSettings
+} from './storage.js';
 import { renderGuide } from './ui/guide.js';
 import { getPrepareCheckinState, isSameDayUploadedCheckin, renderLog } from './ui/log.js';
+import { renderSettings } from './ui/settings.js';
 import { renderToday } from './ui/today.js';
 
 const routes = ['today', 'log', 'guide', 'settings'];
@@ -42,6 +51,7 @@ const DAILY_STATE_KEY = 'halo_daily_v1';
 const APPLIED_ASSESSMENT_KEY = 'halo_applied_assessment_v1';
 const CHECKIN_DRAFTS_KEY = 'halo_checkin_drafts_v1';
 const DAILY_CLAIM_FILE = 'daily-claim.json';
+const PHOTO_DB_NAME = 'halo-post-care-db';
 const DEFAULT_SYMPTOMS = {
   redness: 1,
   swelling: 1,
@@ -52,6 +62,8 @@ const DEFAULT_SYMPTOMS = {
 
 let activeLogRenderToken = 0;
 let activeLogPreviewUrls = [];
+let settingsDraftState = null;
+let settingsUiState = createInitialSettingsUiState();
 
 function padTwo(value) {
   return String(value).padStart(2, '0');
@@ -140,6 +152,75 @@ function normalizeCheckinDraft(storedDraft) {
   };
 }
 
+function createInitialSettingsUiState() {
+  return {
+    connectionMessage: '',
+    connectionTone: 'neutral',
+    syncMessage: '',
+    syncTone: 'neutral',
+    dataMessage: '',
+    dataTone: 'neutral',
+    resetConfirming: false,
+    busyAction: ''
+  };
+}
+
+function mergeSettingsDraft(nextSettings) {
+  settingsDraftState = {
+    ...DEFAULT_SETTINGS,
+    ...(settingsDraftState ?? {}),
+    ...(isPlainObject(nextSettings) ? nextSettings : {})
+  };
+  return settingsDraftState;
+}
+
+function normalizeSettingsInput(rawSettings) {
+  const acyclovirRaw = Number(rawSettings?.acyclovirPerDay);
+  const normalizedAcyclovir = Number.isFinite(acyclovirRaw)
+    ? Math.max(0, Math.trunc(acyclovirRaw))
+    : DEFAULT_SETTINGS.acyclovirPerDay;
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...rawSettings,
+    procedureDate: typeof rawSettings?.procedureDate === 'string' && rawSettings.procedureDate
+      ? rawSettings.procedureDate
+      : DEFAULT_SETTINGS.procedureDate,
+    acyclovirPerDay: normalizedAcyclovir,
+    githubOwner: typeof rawSettings?.githubOwner === 'string'
+      ? rawSettings.githubOwner.trim()
+      : DEFAULT_SETTINGS.githubOwner,
+    dataRepo: typeof rawSettings?.dataRepo === 'string'
+      ? rawSettings.dataRepo.trim()
+      : DEFAULT_SETTINGS.dataRepo,
+    token: typeof rawSettings?.token === 'string' ? rawSettings.token.trim() : ''
+  };
+}
+
+function readSettingsForm() {
+  const form = document.querySelector('[data-settings-form]');
+  if (!(form instanceof HTMLFormElement)) {
+    return normalizeSettingsInput(settingsDraftState ?? loadSettings(window.localStorage));
+  }
+
+  const formData = new FormData(form);
+  return normalizeSettingsInput({
+    ...settingsDraftState,
+    procedureDate: `${formData.get('procedureDate') ?? ''}`,
+    acyclovirPerDay: `${formData.get('acyclovirPerDay') ?? ''}`,
+    githubOwner: `${formData.get('githubOwner') ?? ''}`,
+    dataRepo: `${formData.get('dataRepo') ?? ''}`,
+    token: `${formData.get('token') ?? ''}`
+  });
+}
+
+function setSettingsUiState(nextState) {
+  settingsUiState = {
+    ...settingsUiState,
+    ...nextState
+  };
+}
+
 function loadCheckinDraft(storage, todayIso) {
   const byDate = loadJson(storage, CHECKIN_DRAFTS_KEY, {});
   if (!isPlainObject(byDate)) {
@@ -222,6 +303,69 @@ function getSettingsErrorMessage(settings) {
   }
 
   return '';
+}
+
+function downloadJsonFile(fileName, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function clearLocalDraftPhotos() {
+  if (typeof indexedDB === 'undefined' || typeof indexedDB.deleteDatabase !== 'function') {
+    return false;
+  }
+
+  return await new Promise((resolve) => {
+    const request = indexedDB.deleteDatabase(PHOTO_DB_NAME);
+    request.onsuccess = () => resolve(true);
+    request.onerror = () => resolve(false);
+    request.onblocked = () => resolve(false);
+  });
+}
+
+async function syncLatestAssessment(settings) {
+  const client = createGitHubClient(settings);
+  const assessmentPaths = await client.findAssessmentFiles();
+
+  if (assessmentPaths.length === 0) {
+    throw new Error('No completed check-ins with assessment.json were found.');
+  }
+
+  const validAssessments = [];
+
+  for (const assessmentPath of assessmentPaths) {
+    try {
+      const assessment = await client.getJson(assessmentPath);
+      const candidate = {
+        ...assessment,
+        assessmentPath
+      };
+
+      if (validateAssessment(candidate).valid) {
+        validAssessments.push(candidate);
+      }
+    } catch {
+      // Ignore malformed or unreadable assessment files and keep scanning for a valid one.
+    }
+  }
+
+  const latestAssessment = selectLatestValidAssessment(validAssessments);
+  if (!latestAssessment) {
+    throw new Error('No valid assessment.json files found in completed check-ins.');
+  }
+
+  saveJson(window.localStorage, APPLIED_ASSESSMENT_KEY, latestAssessment);
+  saveSettings(window.localStorage, {
+    ...loadSettings(window.localStorage),
+    lastAssessmentPath: latestAssessment.assessmentPath ?? ''
+  });
+
+  return latestAssessment;
 }
 
 function describeSyncState(draft) {
@@ -715,6 +859,22 @@ async function renderLogRoute(root, context) {
   }
 }
 
+function renderSettingsRoute(root, context) {
+  const settings = mergeSettingsDraft(settingsDraftState ?? context.settings);
+  renderSettings(root, {
+    settings,
+    connectionMessage: settingsUiState.connectionMessage,
+    connectionTone: settingsUiState.connectionTone,
+    syncMessage: settingsUiState.syncMessage,
+    syncTone: settingsUiState.syncTone,
+    dataMessage: settingsUiState.dataMessage,
+    dataTone: settingsUiState.dataTone,
+    resetConfirming: settingsUiState.resetConfirming,
+    busyAction: settingsUiState.busyAction,
+    appliedAssessment: context.assessment
+  });
+}
+
 function render(route = getRoute()) {
   const root = document.querySelector('#app');
   const title = document.querySelector('#screen-title');
@@ -732,6 +892,10 @@ function render(route = getRoute()) {
   } else if (route === 'guide') {
     revokeLogPreviewUrls();
     renderGuide(root, context);
+    updateSyncStatusText('Ready');
+  } else if (route === 'settings') {
+    revokeLogPreviewUrls();
+    renderSettingsRoute(root, context);
     updateSyncStatusText('Ready');
   } else {
     revokeLogPreviewUrls();
@@ -915,6 +1079,135 @@ async function prepareCheckin() {
   render('log');
 }
 
+function resetSettingsFeedback() {
+  setSettingsUiState({
+    connectionMessage: '',
+    connectionTone: 'neutral',
+    syncMessage: '',
+    syncTone: 'neutral',
+    dataMessage: '',
+    dataTone: 'neutral'
+  });
+}
+
+function persistSettingsFromForm() {
+  const nextSettings = mergeSettingsDraft(readSettingsForm());
+  saveSettings(window.localStorage, nextSettings);
+  resetSettingsFeedback();
+  setSettingsUiState({
+    dataMessage: 'Settings saved.',
+    dataTone: 'ok',
+    resetConfirming: false,
+    busyAction: ''
+  });
+  render('settings');
+}
+
+async function testSettingsConnection() {
+  const nextSettings = mergeSettingsDraft(readSettingsForm());
+  setSettingsUiState({
+    busyAction: 'test-connection',
+    connectionMessage: '',
+    connectionTone: 'neutral',
+    syncMessage: '',
+    syncTone: 'neutral',
+    resetConfirming: false
+  });
+  render('settings');
+
+  try {
+    const client = createGitHubClient(nextSettings);
+    await client.testConnection();
+    setSettingsUiState({
+      busyAction: '',
+      connectionMessage: 'Connection OK.',
+      connectionTone: 'ok'
+    });
+  } catch (error) {
+    setSettingsUiState({
+      busyAction: '',
+      connectionMessage: error.message || 'Connection test failed.',
+      connectionTone: 'warning'
+    });
+  }
+
+  render('settings');
+}
+
+async function applySyncedAssessment() {
+  const nextSettings = mergeSettingsDraft(readSettingsForm());
+  setSettingsUiState({
+    busyAction: 'sync-assessment',
+    connectionMessage: '',
+    connectionTone: 'neutral',
+    syncMessage: '',
+    syncTone: 'neutral',
+    resetConfirming: false
+  });
+  render('settings');
+
+  try {
+    const assessment = await syncLatestAssessment(nextSettings);
+    setSettingsUiState({
+      busyAction: '',
+      syncMessage: `Applied assessment from ${assessment.assessmentDate}.`,
+      syncTone: 'ok'
+    });
+  } catch (error) {
+    setSettingsUiState({
+      busyAction: '',
+      syncMessage: error.message || 'Assessment sync failed.',
+      syncTone: 'warning'
+    });
+  }
+
+  render('settings');
+}
+
+function exportLocalData() {
+  const payload = exportAll(window.localStorage);
+  downloadJsonFile(`halo-post-care-export-${getTodayIso()}.json`, payload);
+  setSettingsUiState({
+    dataMessage: 'Export downloaded.',
+    dataTone: 'ok',
+    resetConfirming: false,
+    busyAction: ''
+  });
+  render('settings');
+}
+
+async function resetLocalData() {
+  if (!settingsUiState.resetConfirming) {
+    setSettingsUiState({
+      dataMessage: 'Tap reset again to clear app data and local draft photos.',
+      dataTone: 'warning',
+      resetConfirming: true,
+      busyAction: ''
+    });
+    render('settings');
+    return;
+  }
+
+  setSettingsUiState({
+    busyAction: 'reset-data',
+    dataMessage: '',
+    dataTone: 'neutral'
+  });
+  render('settings');
+
+  resetAll(window.localStorage);
+  settingsDraftState = { ...DEFAULT_SETTINGS };
+  const photosCleared = await clearLocalDraftPhotos();
+  settingsUiState = createInitialSettingsUiState();
+  setSettingsUiState({
+    dataMessage: photosCleared
+      ? 'Local app data cleared.'
+      : 'Local settings were cleared, but draft photos could not be removed automatically.',
+    dataTone: photosCleared ? 'ok' : 'warning'
+  });
+  render('settings');
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   document.addEventListener('click', (event) => {
     const routeButton = event.target.closest('[data-route]');
@@ -971,6 +1264,31 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         });
         render('log');
       });
+      return;
+    }
+
+    if (action === 'save-settings') {
+      persistSettingsFromForm();
+      return;
+    }
+
+    if (action === 'test-connection') {
+      void testSettingsConnection();
+      return;
+    }
+
+    if (action === 'sync-assessment') {
+      void applySyncedAssessment();
+      return;
+    }
+
+    if (action === 'export-data') {
+      exportLocalData();
+      return;
+    }
+
+    if (action === 'reset-data') {
+      void resetLocalData();
     }
   });
 
@@ -1021,6 +1339,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   });
 
   document.addEventListener('input', (event) => {
+    const settingsInput = event.target.closest('[data-settings-field]');
+    if (settingsInput instanceof HTMLInputElement) {
+      mergeSettingsDraft(readSettingsForm());
+      return;
+    }
+
     const noteInput = event.target.closest('[data-note-input]');
     if (!(noteInput instanceof HTMLTextAreaElement)) {
       return;

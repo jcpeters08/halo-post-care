@@ -66,4 +66,10 @@ describe('assessment contract', () => {
     const invalidDate = { ...validAssessment, assessmentDate: 'June 27' };
     assert.equal(validateAssessment(invalidDate).valid, false);
   });
+
+  it('rejects invalid safety urgency values', () => {
+    const invalid = structuredClone(validAssessment);
+    invalid.safety.urgency = 'soon';
+    assert.equal(validateAssessment(invalid).valid, false);
+  });
 });
