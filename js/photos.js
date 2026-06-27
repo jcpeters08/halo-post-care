@@ -17,6 +17,25 @@ function wrapRequest(request) {
   });
 }
 
+function closeDbConnection(db) {
+  if (db && typeof db.close === 'function') {
+    db.close();
+  }
+}
+
+function withPhotoDb(action) {
+  return openPhotoDb().then((db) => {
+    try {
+      return Promise.resolve(action(db)).finally(() => {
+        closeDbConnection(db);
+      });
+    } catch (error) {
+      closeDbConnection(db);
+      return Promise.reject(error);
+    }
+  });
+}
+
 export function buildPhotoDraftId(date, area) {
   return `${date}:${area}`;
 }
@@ -71,7 +90,7 @@ export function openPhotoDb() {
 
 export function savePhotoDraft(draft) {
   ensureIndexedDbAvailable();
-  return openPhotoDb().then((db) => new Promise((resolve, reject) => {
+  return withPhotoDb((db) => new Promise((resolve, reject) => {
     try {
       const transaction = db.transaction(PHOTO_DRAFT_STORE, 'readwrite');
       const store = transaction.objectStore(PHOTO_DRAFT_STORE);
@@ -89,16 +108,18 @@ export function savePhotoDraft(draft) {
 
 export function getPhotoDrafts(date) {
   ensureIndexedDbAvailable();
-  return openPhotoDb().then((db) => {
-    const store = db.transaction(PHOTO_DRAFT_STORE).objectStore(PHOTO_DRAFT_STORE);
-    return wrapRequest(store.getAll())
-      .then((drafts) => drafts.filter((draft) => draft?.date === date));
+  return withPhotoDb((db) => {
+    const transaction = db.transaction(PHOTO_DRAFT_STORE);
+    const store = transaction.objectStore(PHOTO_DRAFT_STORE);
+    const index = store.index('byDate');
+    const request = index.getAll(date);
+    return wrapRequest(request);
   });
 }
 
 export function deletePhotoDraft(id) {
   ensureIndexedDbAvailable();
-  return openPhotoDb().then((db) => new Promise((resolve, reject) => {
+  return withPhotoDb((db) => new Promise((resolve, reject) => {
     try {
       const transaction = db.transaction(PHOTO_DRAFT_STORE, 'readwrite');
       const request = transaction.objectStore(PHOTO_DRAFT_STORE).delete(id);
