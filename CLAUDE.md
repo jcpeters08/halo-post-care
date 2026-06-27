@@ -218,3 +218,7 @@ curl -I https://jcpeters08.github.io/halo-post-care/
 - The app repo ignores `.superpowers/`; those are local SDD scratch files and must not be tracked.
 - If the Pages URL appears stale right after a push, wait for Pages status to become `built` and retry with a cache-busting query string.
 - If the iPhone PWA still shows the old nav after a pushed app update, close/reopen or reload once so the bumped service worker cache can activate.
+
+## Handoff Notes (cross-agent)
+
+- 2026-06-27 (Claude, commit `e06dbfa`): Corrected `RECOVERY_CONTENT.routine` in `js/data.js` to match the provider's core daily sequence. **Do not revert.** AM = `cleanse → hocl → alastin → cicalfate → spf` (HOCl replaced the old `thermal_water` step). PM = `cleanse → hocl → alastin → cicalfate` — SPF is **AM-only** and was removed from the evening routine. Rationale: thermal water is as-needed comfort (not a fixed daily step), and sunscreen is not an evening step; both deviated from the schedule. Smoke-test fixtures in `tests/smoke.test.js` (the `am`/`pm` state objects and the backfill test) were updated to the new shape; service worker cache bumped to `halo-post-care-v4`. If you reorder/relabel routine steps, keep AM and PM consistent with the schedule and update the smoke fixtures + SW cache version in the same change.
