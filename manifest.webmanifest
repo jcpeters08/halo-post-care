@@ -1,0 +1,16 @@
+{
+  "name": "Halo Post-Care",
+  "short_name": "Halo Care",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#f7f4ef",
+  "icons": [
+    {
+      "src": "icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

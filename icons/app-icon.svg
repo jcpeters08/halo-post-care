@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Halo Post-Care">
+  <rect width="512" height="512" rx="96" fill="#f7f4ef"/>
+  <circle cx="256" cy="236" r="134" fill="none" stroke="#2f6f73" stroke-width="34"/>
+  <path d="M158 334c54 46 142 46 196 0" fill="none" stroke="#a33d2d" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="210" cy="224" r="16" fill="#1f2523"/>
+  <circle cx="302" cy="224" r="16" fill="#1f2523"/>
+</svg>
