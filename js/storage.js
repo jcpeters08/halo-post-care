@@ -28,7 +28,15 @@ export function saveJson(storage, key, value) {
 }
 
 export function loadSettings(storage) {
-  return loadJson(storage, SETTINGS_KEY, DEFAULT_SETTINGS);
+  const loaded = loadJson(storage, SETTINGS_KEY, null);
+  if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) {
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...loaded
+  };
 }
 
 export function saveSettings(storage, settings) {

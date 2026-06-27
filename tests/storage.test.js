@@ -20,6 +20,28 @@ describe('storage helpers', () => {
     assert.deepEqual(loadSettings(fakeStorage()), DEFAULT_SETTINGS);
   });
 
+  it('returns fresh defaults when stored settings are missing', () => {
+    const storage = fakeStorage();
+    const loaded = loadSettings(storage);
+    loaded.token = 'mutated';
+    loaded.githubOwner = 'someone';
+
+    assert.equal(DEFAULT_SETTINGS.token, '');
+    assert.equal(DEFAULT_SETTINGS.githubOwner, 'jcpeters08');
+    assert.equal(loadSettings(storage).token, '');
+    assert.equal(loadSettings(storage).githubOwner, 'jcpeters08');
+  });
+
+  it('merges partial stored settings with defaults', () => {
+    const storage = fakeStorage();
+    storage.setItem('halo_settings_v1', JSON.stringify({ token: 'abc' }));
+
+    assert.deepEqual(loadSettings(storage), {
+      ...DEFAULT_SETTINGS,
+      token: 'abc'
+    });
+  });
+
   it('round-trips settings JSON', () => {
     const storage = fakeStorage();
     saveSettings(storage, { ...DEFAULT_SETTINGS, githubOwner: 'jcpeters08', token: 'secret' });

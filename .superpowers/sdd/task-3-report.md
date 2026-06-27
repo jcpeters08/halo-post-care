@@ -33,13 +33,22 @@ Implemented Task 3 in `/Users/jonathanpeters/Git/halo-post-care`.
 - Step 2 (red test) reproduced before implementation by temporarily removing modules:
   - `node --test tests/storage.test.js tests/checklist.test.js` → fail with expected `ERR_MODULE_NOT_FOUND` for `js/storage.js` and `js/checklist.js`.
 - Focused tests after implementation:
-  - `node --test tests/storage.test.js tests/checklist.test.js` → **pass 6**
+  - `node --test tests/storage.test.js tests/checklist.test.js` → **pass 8**
 - Full suite:
-  - `npm test` → **pass 13** across **4** suites (smoke, day, storage, checklist)
+  - `npm test` → **pass 15** across **4** suites (smoke, day, storage, checklist)
+
+### Review-fix pass (Task 3 findings)
+- `node --test tests/storage.test.js` → pass **5** across **1** suite.
+- `npm test` → pass **15** across **4** suites.
+- Fixed `loadSettings()` to return a fresh merged defaults object and safely fall back to defaults on invalid JSON or missing storage.
+- Added storage tests:
+  - `returns fresh defaults when stored settings are missing`
+  - `merges partial stored settings with defaults`
 
 ## Self-review
 - Files are intentionally limited to Task 3 scope and do not touch existing shell/app logic.
 - No tests are currently failing and no follow-up blockers were encountered.
 
 ## Commit status
-- Pending commit at time of this report.
+- Committed as `748cd0a` — Add local settings and checklist state.
+- Committed as `2efc881` — Fix Task 3 storage load normalization.
