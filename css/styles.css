@@ -680,31 +680,6 @@ h1 {
     padding-left: 24px;
     padding-right: 24px;
   }
-
-  .guidance-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .timeline-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .mini-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .photo-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .symptom-row {
-    grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
-    align-items: center;
-  }
-
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 520px) {

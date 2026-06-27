@@ -47,6 +47,13 @@ describe('project shell', () => {
     }
   });
 
+  it('pre-caches the core app shell in the service worker', async () => {
+    const sw = await readFile('sw.js', 'utf8');
+    for (const path of ['index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest']) {
+      assert.match(sw, new RegExp(path.replace('.', '\\.')));
+    }
+  });
+
   it('renders the Today and Guide views with recovery content', async () => {
     const [{ renderToday }, { renderGuide }] = await Promise.all([
       import('../js/ui/today.js'),
