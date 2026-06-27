@@ -13,6 +13,7 @@ This file is the operational briefing for Claude/Codex agents working in this re
 - Runtime dependencies: none.
 - Test command: `npm test`
 - Local server: `npm run serve` -> `http://localhost:4173`
+- Latest app update on 2026-06-27: visible Codex photo assessments are now in the app. Today shows the latest assessment, and the `Assess` tab shows assessment history newest-first.
 
 The app is working and published. The private data repo exists, is private, and has a `checkins/` folder. The in-app GitHub token connection test has passed.
 
@@ -42,7 +43,12 @@ Important files:
 - `js/assessment.js`: assessment schema validation and latest valid selection.
 - `js/github.js`: GitHub Contents API client.
 - `js/photos.js`: IndexedDB photo drafts and compression.
-- `js/ui/*.js`: Today, Log, Guide, Settings renderers.
+- `js/ui/components.js`: shared UI helpers, guidance cards, safety panel, and reusable assessment detail renderer.
+- `js/ui/today.js`: Today renderer, including latest photo assessment card.
+- `js/ui/assessments.js`: historical assessment screen, newest-first.
+- `js/ui/log.js`: check-in/photo upload renderer.
+- `js/ui/guide.js`: recovery reference renderer.
+- `js/ui/settings.js`: settings, GitHub connection, assessment sync, export/reset renderer.
 - `sw.js`: service worker app-shell/offline cache.
 - `manifest.webmanifest`: PWA metadata.
 - `README.md`: user-facing setup/deployment workflow.
@@ -81,7 +87,7 @@ The app writes `complete.json` last. A folder without `complete.json` is incompl
 6. Claude/Codex reviews the latest completed folder in `/Users/jonathanpeters/Git/halo-post-care-data`.
 7. Claude/Codex writes `assessment.json` and `assessment.md` into that same folder.
 8. Claude/Codex commits and pushes the private data repo.
-9. The app syncs and automatically applies the newest valid Codex assessment. Settings also has a manual `Sync latest Codex assessment` refresh.
+9. The app syncs all valid Codex assessments, applies the newest valid one to Today guidance, shows the latest photo read on Today, and shows historical reads in the `Assess` tab. Settings has a manual `Sync Codex assessments` refresh.
 
 ## Claude/Codex Assessment Workflow
 
@@ -138,6 +144,12 @@ Required guidance groups:
 
 If `safety.callClinic` is `true`, or urgency is `call_clinic`/`urgent`, the Today screen shows a prominent Codex safety alert ahead of ordinary guidance.
 
+The app now surfaces the assessment itself, not only derived guidance:
+
+- Today renders the newest assessment as a `Photo assessment` card with overall status, safety urgency, confidence, check-in path, observations, and next actions.
+- `Assess` renders cached valid assessments newest-first for historical review.
+- Settings sync stores all valid assessments in `halo_applied_assessment_v1.assessments`; `loadAppliedAssessment` still selects the newest valid assessment for guidance.
+
 ## Safety And Guidance Model
 
 Baseline instructions come from the provider schedule encoded in the app. Codex assessments can adjust practical guidance for:
@@ -171,6 +183,7 @@ The test suite covers:
 - GitHub Contents API construction and retry update semantics;
 - IndexedDB photo draft behavior and persistent storage request;
 - rendered Today/Guide/Log/Settings smoke checks;
+- rendered `Assess` history and latest Today photo assessment smoke checks;
 - service worker cache coverage.
 
 If changing PWA/offline behavior, also manually check the published or local app in mobile viewport.
@@ -203,4 +216,4 @@ curl -I https://jcpeters08.github.io/halo-post-care/
 - `daily-claim.json` stays create-only so same-day duplicate claims are not accidentally overwritten.
 - The app repo ignores `.superpowers/`; those are local SDD scratch files and must not be tracked.
 - If the Pages URL appears stale right after a push, wait for Pages status to become `built` and retry with a cache-busting query string.
-
+- If the iPhone PWA still shows the old nav after a pushed app update, close/reopen or reload once so the bumped service worker cache can activate.
