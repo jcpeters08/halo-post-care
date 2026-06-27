@@ -33,4 +33,21 @@ describe('check-in contract', () => {
     assert.match(buildSummaryMarkdown(manifest), /# Check-in - Day 1/);
     assert.equal(buildCompleteMarker(manifest).checkinPath, manifest.checkinPath);
   });
+
+  it('includes required photo filenames in the summary', () => {
+    const manifest = buildManifest({
+      checkinPath: 'checkins/2026-06-27/2030',
+      createdAt: '2026-06-27T20:30:00-05:00',
+      procedureDate: '2026-06-26',
+      recoveryDay: 1,
+      stageAuto: 'red_warm_tight',
+      symptoms: { redness: 4, swelling: 3, flaking: 1, itch: 2, tightness: 4 },
+      adherence: { am: { completed: 5, total: 5 }, pm: { completed: 4, total: 5 }, counters: {} },
+      note: ''
+    });
+    const markdown = buildSummaryMarkdown(manifest);
+    assert.match(markdown, /face\.jpg/);
+    assert.match(markdown, /neck\.jpg/);
+    assert.match(markdown, /hands\.jpg/);
+  });
 });
