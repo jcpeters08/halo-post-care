@@ -13,9 +13,13 @@ export function formatLocalIsoDate(date) {
 }
 
 export function computeRecoveryDay(todayIso, procedureDateIso) {
-  const today = parseLocalIsoDate(todayIso);
-  const procedure = parseLocalIsoDate(procedureDateIso);
-  return Math.floor((today.getTime() - procedure.getTime()) / 86400000);
+  const [todayYear, todayMonth, todayDay] = todayIso.split('-').map(Number);
+  const [procedureYear, procedureMonth, procedureDay] = procedureDateIso
+    .split('-')
+    .map(Number);
+  const todayUtcMidnight = Date.UTC(todayYear, todayMonth - 1, todayDay);
+  const procedureUtcMidnight = Date.UTC(procedureYear, procedureMonth - 1, procedureDay);
+  return Math.floor((todayUtcMidnight - procedureUtcMidnight) / 86400000);
 }
 
 export function getStageForDay(recoveryDay) {

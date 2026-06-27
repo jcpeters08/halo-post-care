@@ -12,6 +12,7 @@ describe('recovery day math', () => {
     assert.equal(computeRecoveryDay('2026-06-26', '2026-06-26'), 0);
     assert.equal(computeRecoveryDay('2026-06-27', '2026-06-26'), 1);
     assert.equal(computeRecoveryDay('2026-07-04', '2026-06-26'), 8);
+    assert.equal(computeRecoveryDay('2026-03-09', '2026-03-07'), 2);
   });
 
   it('maps day ranges to stages', () => {
