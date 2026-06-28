@@ -330,6 +330,79 @@ describe('project shell', () => {
     assert.ok(root.innerHTML.indexOf('Redness is settling') < root.innerHTML.indexOf('Day 1 had expected redness'));
   });
 
+  it('renders progress photos by selected area with latest baseline comparison', async () => {
+    const { renderProgress } = await import('../js/ui/progress.js');
+    const root = { innerHTML: '' };
+    const entries = [
+      {
+        checkinPath: 'checkins/2026-06-28/0840',
+        date: '2026-06-28',
+        time: '0840',
+        recoveryDay: 2,
+        stageAuto: 'mends_bronzing',
+        photos: {
+          face: { src: 'data:image/jpeg;base64,ZmFjZTI=', fileName: 'face.jpg' },
+          neck: null,
+          hands: null
+        }
+      },
+      {
+        checkinPath: 'checkins/2026-06-27/2030',
+        date: '2026-06-27',
+        time: '2030',
+        recoveryDay: 1,
+        stageAuto: 'red_warm_tight',
+        photos: {
+          face: { src: 'data:image/jpeg;base64,ZmFjZTE=', fileName: 'face.jpg' },
+          neck: null,
+          hands: null
+        }
+      }
+    ];
+
+    renderProgress(root, {
+      status: 'ready',
+      selectedArea: 'face',
+      entries
+    });
+
+    assert.match(root.innerHTML, /Photo progress/);
+    assert.match(root.innerHTML, /Compare recovery over time/);
+    assert.match(root.innerHTML, /data-action="set-progress-area"/);
+    assert.match(root.innerHTML, /aria-pressed="true"[\s\S]*Face/);
+    assert.match(root.innerHTML, /Face timeline/);
+    assert.match(root.innerHTML, /Recovery day 2/);
+    assert.match(root.innerHTML, /Recovery day 1/);
+    assert.match(root.innerHTML, /Latest vs baseline/);
+    assert.match(root.innerHTML, /Latest/);
+    assert.match(root.innerHTML, /Baseline/);
+    assert.ok(root.innerHTML.indexOf('Recovery day 2') < root.innerHTML.indexOf('Recovery day 1'));
+  });
+
+  it('renders progress loading empty error and settings states', async () => {
+    const { renderProgress } = await import('../js/ui/progress.js');
+    const root = { innerHTML: '' };
+
+    renderProgress(root, { status: 'loading', selectedArea: 'face', entries: [] });
+    assert.match(root.innerHTML, /Loading progress photos/);
+
+    renderProgress(root, { status: 'missing_settings', selectedArea: 'face', entries: [] });
+    assert.match(root.innerHTML, /Connect GitHub in Settings/);
+
+    renderProgress(root, { status: 'ready', selectedArea: 'face', entries: [] });
+    assert.match(root.innerHTML, /Progress appears after completed check-ins/);
+
+    renderProgress(root, {
+      status: 'error',
+      selectedArea: 'face',
+      entries: [],
+      errorMessage: '401: Bad credentials'
+    });
+    assert.match(root.innerHTML, /Could not load progress photos/);
+    assert.match(root.innerHTML, /401: Bad credentials/);
+    assert.match(root.innerHTML, /data-action="retry-progress"/);
+  });
+
   it('disables all settings actions while a settings operation is in flight', async () => {
     const { renderSettings } = await import('../js/ui/settings.js');
     const root = { innerHTML: '' };
