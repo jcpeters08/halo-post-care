@@ -13,7 +13,8 @@ This file is the operational briefing for Claude/Codex agents working in this re
 - Runtime dependencies: none.
 - Test command: `npm test`
 - Local server: `npm run serve` -> `http://localhost:4173`
-- Latest app update on 2026-06-28: Today now shows dynamic red light mask guidance as a `Recovery tools` card, and Guide includes the restart schedule. Days 0-6 wait, days 7-13 allow a clean 5-minute restart if calm, and day 14+ allows the normal 10-minute routine only if fully calm. Service worker cache bumped to `halo-post-care-v5`.
+- Latest app update on 2026-06-28: dedicated `Progress` tab shows private check-in photos by area over time. `Face`, `Neck`, and `Hands` timelines load from completed private data repo check-ins using the existing GitHub token. Service worker cache bumped to `halo-post-care-v6`.
+- App update on 2026-06-28: Today now shows dynamic red light mask guidance as a `Recovery tools` card, and Guide includes the restart schedule. Days 0-6 wait, days 7-13 allow a clean 5-minute restart if calm, and day 14+ allows the normal 10-minute routine only if fully calm. Service worker cache bumped to `halo-post-care-v5`.
 - App update on 2026-06-27: visible Codex photo assessments are now in the app. Today shows the latest assessment, and the `Assess` tab shows assessment history newest-first.
 - Routine content fix on 2026-06-27: AM core sequence now leads with HOCl spray (was Thermal water; thermal water is as-needed comfort, not a fixed step), and SPF is AM-only (removed from the PM/evening routine, which is now 4 steps). Matches the provider schedule's core daily sequence. Service worker cache bumped to `halo-post-care-v4`.
 
@@ -45,9 +46,11 @@ Important files:
 - `js/assessment.js`: assessment schema validation and latest valid selection.
 - `js/github.js`: GitHub Contents API client.
 - `js/photos.js`: IndexedDB photo drafts and compression.
+- `js/progress.js`: progress photo normalization and selected-area view helpers.
 - `js/ui/components.js`: shared UI helpers, guidance cards, safety panel, and reusable assessment detail renderer.
 - `js/ui/today.js`: Today renderer, including latest photo assessment card.
 - `js/ui/assessments.js`: historical assessment screen, newest-first.
+- `js/ui/progress.js`: Progress tab renderer for loading, empty, error, and photo timeline states.
 - `js/ui/log.js`: check-in/photo upload renderer.
 - `js/ui/guide.js`: recovery reference renderer.
 - `js/ui/settings.js`: settings, GitHub connection, assessment sync, export/reset renderer.
@@ -152,6 +155,13 @@ The app now surfaces the assessment itself, not only derived guidance:
 - `Assess` renders cached valid assessments newest-first for historical review.
 - Settings sync stores all valid assessments in `halo_applied_assessment_v1.assessments`; `loadAppliedAssessment` still selects the newest valid assessment for guidance.
 
+The app also includes a dedicated `Progress` tab for visual comparison over time:
+
+- Progress loads completed check-in folders from the private data repo with the existing GitHub token.
+- It reads `manifest.json` when available and loads same-area photo files for `Face`, `Neck`, and `Hands`.
+- The selected-area timeline sorts newest-first, and `Latest vs baseline` compares the newest available photo with the oldest available photo for that area.
+- Loaded photos live only in runtime app state as `data:image/jpeg;base64,...` URLs. Do not add real photo fixtures or screenshots to this public repo.
+
 Red light mask guidance is app-native and is not part of the `assessment.json` contract. `getRedLightMaskGuidance(recoveryDay)` in `js/day.js` derives it from `RECOVERY_CONTENT.recoveryTools.redLightMask`:
 
 - days 0-6: `wait`, "Wait on red light mask";
@@ -194,6 +204,7 @@ The test suite covers:
 - IndexedDB photo draft behavior and persistent storage request;
 - rendered Today/Guide/Log/Settings smoke checks;
 - rendered `Assess` history and latest Today photo assessment smoke checks;
+- rendered `Progress` timeline/loading/settings/error smoke checks;
 - red light mask recovery-tool timing and rendering;
 - service worker cache coverage.
 
@@ -233,3 +244,4 @@ curl -I https://jcpeters08.github.io/halo-post-care/
 
 - 2026-06-27 (Claude, commit `e06dbfa`): Corrected `RECOVERY_CONTENT.routine` in `js/data.js` to match the provider's core daily sequence. **Do not revert.** AM = `cleanse → hocl → alastin → cicalfate → spf` (HOCl replaced the old `thermal_water` step). PM = `cleanse → hocl → alastin → cicalfate` — SPF is **AM-only** and was removed from the evening routine. Rationale: thermal water is as-needed comfort (not a fixed daily step), and sunscreen is not an evening step; both deviated from the schedule. Smoke-test fixtures in `tests/smoke.test.js` (the `am`/`pm` state objects and the backfill test) were updated to the new shape; service worker cache bumped to `halo-post-care-v4`. If you reorder/relabel routine steps, keep AM and PM consistent with the schedule and update the smoke fixtures + SW cache version in the same change.
 - 2026-06-28 (Codex): Added red light mask restart guidance as an app-native recovery tool, not an assessment-schema field. **Do not move this into `assessment.json` without a schema/version decision.** Day 0-6 waits, day 7-13 shows limited 5-minute restart instructions, and day 14+ shows the 10-minute routine only if fully calm. Updated tests in `tests/day.test.js` and `tests/smoke.test.js`; service worker cache bumped to `halo-post-care-v5`.
+- 2026-06-28 (Codex): Added `Progress` tab for visual photo comparison over time. It reads completed private repo check-ins through GitHub Contents API, renders same-area timelines for Face/Neck/Hands, and keeps photo data out of the public repo. Do not add real photo fixtures or screenshots to this repo.
