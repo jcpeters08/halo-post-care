@@ -42,14 +42,14 @@ describe('project shell', () => {
 
   it('defines the primary routes in the app shell', async () => {
     const html = await readFile('index.html', 'utf8');
-    for (const route of ['today', 'log', 'assessments', 'guide', 'settings']) {
+    for (const route of ['today', 'log', 'assessments', 'progress', 'guide', 'settings']) {
       assert.match(html, new RegExp(`data-route="${route}"`));
     }
   });
 
   it('pre-caches the core app shell in the service worker', async () => {
     const sw = await readFile('sw.js', 'utf8');
-    for (const path of ['index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest']) {
+    for (const path of ['index.html', 'css/styles.css', 'js/app.js', 'js/progress.js', 'js/ui/progress.js', 'manifest.webmanifest']) {
       assert.match(sw, new RegExp(path.replace('.', '\\.')));
     }
   });

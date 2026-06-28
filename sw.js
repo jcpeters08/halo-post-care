@@ -1,4 +1,4 @@
-const CACHE_NAME = 'halo-post-care-v5';
+const CACHE_NAME = 'halo-post-care-v6';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,11 +11,13 @@ const APP_SHELL = [
   './js/day.js',
   './js/github.js',
   './js/photos.js',
+  './js/progress.js',
   './js/storage.js',
   './js/ui/assessments.js',
   './js/ui/components.js',
   './js/ui/guide.js',
   './js/ui/log.js',
+  './js/ui/progress.js',
   './js/ui/settings.js',
   './js/ui/today.js',
   './manifest.webmanifest',

@@ -33,6 +33,7 @@ import {
   PHOTO_AREAS,
   savePhotoDraft
 } from './photos.js';
+import { buildProgressEntry, normalizeProgressEntries } from './progress.js';
 import {
   DEFAULT_SETTINGS,
   exportAll,
@@ -45,10 +46,11 @@ import {
 import { renderAssessments } from './ui/assessments.js';
 import { renderGuide } from './ui/guide.js';
 import { getPrepareCheckinState, isSameDayUploadedCheckin, renderLog } from './ui/log.js';
+import { renderProgress } from './ui/progress.js';
 import { renderSettings } from './ui/settings.js';
 import { renderToday } from './ui/today.js';
 
-const routes = ['today', 'log', 'assessments', 'guide', 'settings'];
+const routes = ['today', 'log', 'assessments', 'progress', 'guide', 'settings'];
 const DAILY_STATE_KEY = 'halo_daily_v1';
 const APPLIED_ASSESSMENT_KEY = 'halo_applied_assessment_v1';
 const CHECKIN_DRAFTS_KEY = 'halo_checkin_drafts_v1';
@@ -64,6 +66,13 @@ const DEFAULT_SYMPTOMS = {
 
 let activeLogRenderToken = 0;
 let activeLogPreviewUrls = [];
+let activeProgressRenderToken = 0;
+let progressUiState = {
+  selectedArea: 'face',
+  entries: [],
+  status: 'idle',
+  errorMessage: ''
+};
 let settingsDraftState = null;
 let settingsUiState = createInitialSettingsUiState();
 
@@ -915,6 +924,92 @@ function renderSettingsRoute(root, context) {
   });
 }
 
+function hasGitHubProgressSettings(settings) {
+  return Boolean(settings?.githubOwner && settings?.dataRepo && settings?.token);
+}
+
+async function loadProgressEntries(settings) {
+  const client = createGitHubClient(settings);
+  const checkinPaths = await client.findCompletedCheckins();
+  const entries = [];
+
+  for (const checkinPath of checkinPaths) {
+    let manifest = {};
+    try {
+      manifest = await client.getJson(`${checkinPath}/manifest.json`);
+    } catch {
+      manifest = {};
+    }
+
+    const photoBase64ByArea = {};
+    for (const area of PHOTO_AREAS) {
+      const fileName = typeof manifest?.photos?.[area] === 'string' && manifest.photos[area]
+        ? manifest.photos[area]
+        : `${area}.jpg`;
+      try {
+        photoBase64ByArea[area] = await client.getFileBase64(`${checkinPath}/${fileName}`);
+      } catch {
+        photoBase64ByArea[area] = '';
+      }
+    }
+
+    entries.push(buildProgressEntry({ checkinPath, manifest, photoBase64ByArea }));
+  }
+
+  return normalizeProgressEntries(entries);
+}
+
+async function renderProgressRoute(root, context) {
+  const renderToken = ++activeProgressRenderToken;
+
+  if (!hasGitHubProgressSettings(context.settings)) {
+    progressUiState = {
+      ...progressUiState,
+      status: 'missing_settings',
+      errorMessage: ''
+    };
+    renderProgress(root, progressUiState);
+    updateSyncStatusText('GitHub settings needed for progress photos.');
+    return;
+  }
+
+  progressUiState = {
+    ...progressUiState,
+    status: 'loading',
+    errorMessage: ''
+  };
+  renderProgress(root, progressUiState);
+  updateSyncStatusText('Loading progress photos...');
+
+  try {
+    const entries = await loadProgressEntries(context.settings);
+    if (renderToken !== activeProgressRenderToken || getRoute() !== 'progress') {
+      return;
+    }
+
+    progressUiState = {
+      ...progressUiState,
+      entries,
+      status: 'ready',
+      errorMessage: ''
+    };
+    renderProgress(root, progressUiState);
+    updateSyncStatusText(`Loaded ${entries.length} completed check-in${entries.length === 1 ? '' : 's'}.`);
+  } catch (error) {
+    if (renderToken !== activeProgressRenderToken || getRoute() !== 'progress') {
+      return;
+    }
+
+    progressUiState = {
+      ...progressUiState,
+      status: 'error',
+      errorMessage: error.message || 'Progress photo sync failed.'
+    };
+    renderProgress(root, progressUiState);
+    updateSyncStatusText('Progress photo sync failed.');
+  }
+}
+
 function render(route = getRoute()) {
   const root = document.querySelector('#app');
   const title = document.querySelector('#screen-title');
@@ -922,6 +1017,7 @@ function render(route = getRoute()) {
     today: 'Today',
     log: 'Log',
     assessments: 'Assessments',
+    progress: 'Progress',
     guide: 'Guide',
     settings: 'Settings'
   };
@@ -930,24 +1026,33 @@ function render(route = getRoute()) {
   title.textContent = labels[route];
 
   if (route === 'today') {
+    activeProgressRenderToken += 1;
     revokeLogPreviewUrls();
     renderToday(root, context);
     updateSyncStatusText('Ready');
   } else if (route === 'log') {
+    activeProgressRenderToken += 1;
     void renderLogRoute(root, context);
   } else if (route === 'assessments') {
+    activeProgressRenderToken += 1;
     revokeLogPreviewUrls();
     renderAssessments(root, context);
     updateSyncStatusText('Ready');
+  } else if (route === 'progress') {
+    revokeLogPreviewUrls();
+    void renderProgressRoute(root, context);
   } else if (route === 'guide') {
+    activeProgressRenderToken += 1;
     revokeLogPreviewUrls();
     renderGuide(root, context);
     updateSyncStatusText('Ready');
   } else if (route === 'settings') {
+    activeProgressRenderToken += 1;
     revokeLogPreviewUrls();
     renderSettingsRoute(root, context);
     updateSyncStatusText('Ready');
   } else {
+    activeProgressRenderToken += 1;
     revokeLogPreviewUrls();
     renderPlaceholder(root, route);
     updateSyncStatusText('Ready');
@@ -1342,6 +1447,33 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         return;
       }
       void applySyncedAssessment();
+      return;
+    }
+
+    if (action === 'set-progress-area') {
+      const area = actionTarget.dataset.progressArea;
+      if (PHOTO_AREAS.includes(area)) {
+        progressUiState = {
+          ...progressUiState,
+          selectedArea: area
+        };
+        const root = document.querySelector('#app');
+        if (root && getRoute() === 'progress') {
+          renderProgress(root, progressUiState);
+        } else {
+          render('progress');
+        }
+      }
+      return;
+    }
+
+    if (action === 'retry-progress') {
+      progressUiState = {
+        ...progressUiState,
+        status: 'idle',
+        errorMessage: ''
+      };
+      render('progress');
       return;
     }
 
