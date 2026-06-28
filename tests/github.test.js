@@ -176,4 +176,65 @@ describe('GitHub client', () => {
     const summaryPut = calls.find(({ path, method }) => path === existingSummaryPath && method === 'PUT');
     assert.equal(summaryPut.body.sha, 'summary-sha');
   });
+
+  it('loads raw base64 file content without JSON parsing', async () => {
+    const calls = [];
+    const fetchImpl = async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        json: async () => ({ content: ' aW1hZ2UtYnl0ZXM=\n' })
+      };
+    };
+    const client = createGitHubClient(settings, fetchImpl);
+
+    const content = await client.getFileBase64('checkins/2026-06-28/0840/face.jpg');
+
+    assert.equal(content, 'aW1hZ2UtYnl0ZXM=');
+    assert.equal(calls[0].url, 'https://api.github.com/repos/jcpeters08/halo-post-care-data/contents/checkins%2F2026-06-28%2F0840%2Fface.jpg');
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
+  });
+
+  it('finds completed check-in folders and ignores incomplete folders', async () => {
+    const directoryPayloads = new Map([
+      ['checkins', [
+        { type: 'dir', name: '2026-06-27', path: 'checkins/2026-06-27' },
+        { type: 'dir', name: '2026-06-28', path: 'checkins/2026-06-28' },
+        { type: 'file', name: 'README.md', path: 'checkins/README.md' }
+      ]],
+      ['checkins/2026-06-27', [
+        { type: 'dir', name: '2030', path: 'checkins/2026-06-27/2030' }
+      ]],
+      ['checkins/2026-06-28', [
+        { type: 'dir', name: '0840', path: 'checkins/2026-06-28/0840' },
+        { type: 'dir', name: '0915', path: 'checkins/2026-06-28/0915' }
+      ]],
+      ['checkins/2026-06-27/2030', [
+        { type: 'file', name: 'complete.json', path: 'checkins/2026-06-27/2030/complete.json' },
+        { type: 'file', name: 'manifest.json', path: 'checkins/2026-06-27/2030/manifest.json' }
+      ]],
+      ['checkins/2026-06-28/0840', [
+        { type: 'file', name: 'complete.json', path: 'checkins/2026-06-28/0840/complete.json' },
+        { type: 'file', name: 'face.jpg', path: 'checkins/2026-06-28/0840/face.jpg' }
+      ]],
+      ['checkins/2026-06-28/0915', [
+        { type: 'file', name: 'manifest.json', path: 'checkins/2026-06-28/0915/manifest.json' }
+      ]]
+    ]);
+    const fetchImpl = async (url) => {
+      const path = decodeURIComponent(url.split('/contents/')[1]);
+      return {
+        ok: true,
+        json: async () => directoryPayloads.get(path)
+      };
+    };
+    const client = createGitHubClient(settings, fetchImpl);
+
+    const paths = await client.findCompletedCheckins();
+
+    assert.deepEqual(paths, [
+      'checkins/2026-06-27/2030',
+      'checkins/2026-06-28/0840'
+    ]);
+  });
 });

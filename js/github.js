@@ -169,6 +169,21 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
     return JSON.parse(decoded);
   }
 
+  async function getFileBase64(path) {
+    const payload = await request(fetchImpl, {
+      url: buildContentsUrl(githubOwner, dataRepo, path),
+      options: { headers }
+    });
+    if (!payload || typeof payload !== 'object') {
+      throw new Error(`Expected file payload for ${path}`);
+    }
+    if (typeof payload.content !== 'string') {
+      throw new Error(`GitHub API did not return file content for ${path}`);
+    }
+
+    return stripBase64Whitespace(payload.content);
+  }
+
   async function listDirectory(path) {
     const payload = await request(fetchImpl, {
       url: buildContentsUrl(githubOwner, dataRepo, path),
@@ -274,12 +289,34 @@ export function createGitHubClient(settings, fetchImpl = fetch) {
     return completeAssessmentPaths;
   }
 
+  async function findCompletedCheckins() {
+    const checkins = await listDirectory('checkins');
+    const completedPaths = [];
+
+    for (const dateEntry of checkins.filter(isDirectory)) {
+      const datePath = getEntryPath(dateEntry, `checkins/${getEntryName(dateEntry)}`);
+      const dateEntries = await listDirectory(datePath);
+
+      for (const timeEntry of dateEntries.filter(isDirectory)) {
+        const timePath = getEntryPath(timeEntry, `${datePath}/${getEntryName(timeEntry)}`);
+        const checkinEntries = await listDirectory(timePath);
+        if (checkinEntries.some((entry) => isFile(entry, 'complete.json'))) {
+          completedPaths.push(timePath);
+        }
+      }
+    }
+
+    return completedPaths;
+  }
+
   return {
     testConnection,
     putFile,
     getJson,
+    getFileBase64,
     listDirectory,
     uploadCheckin,
-    findAssessmentFiles
+    findAssessmentFiles,
+    findCompletedCheckins
   };
 }
