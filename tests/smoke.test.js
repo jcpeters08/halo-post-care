@@ -59,6 +59,22 @@ describe('project shell', () => {
     assert.match(sw, /await cache\.put\(event\.request,\s*response\.clone\(\)\)/);
   });
 
+  it('defines Progress tab visual classes', async () => {
+    const css = await readFile('css/styles.css', 'utf8');
+    for (const className of [
+      'segmented-control',
+      'segmented-button',
+      'progress-photo-strip',
+      'progress-photo-card',
+      'progress-photo-frame',
+      'progress-photo-image',
+      'progress-photo-placeholder',
+      'progress-compare-grid'
+    ]) {
+      assert.match(css, new RegExp(`\\.${className}`));
+    }
+  });
+
   it('renders the Today and Guide views with recovery content', async () => {
     const [{ renderToday }, { renderGuide }] = await Promise.all([
       import('../js/ui/today.js'),
