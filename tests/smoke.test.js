@@ -95,11 +95,42 @@ describe('project shell', () => {
     assert.match(todayRoot.innerHTML, /data-action="set-flag"/);
     assert.match(todayRoot.innerHTML, /Call clinic/);
     assert.match(todayRoot.innerHTML, /Default guidance/);
+    assert.match(todayRoot.innerHTML, /Red light mask/);
+    assert.match(todayRoot.innerHTML, /Wait on red light mask/);
 
     assert.match(guideRoot.innerHTML, /Day-by-day guide/);
     assert.match(guideRoot.innerHTML, /Reintroduction ladder/);
+    assert.match(guideRoot.innerHTML, /Restart red light mask/);
+    assert.match(guideRoot.innerHTML, /Day 7/);
     assert.match(guideRoot.innerHTML, /Call clinic if/);
     assert.match(guideRoot.innerHTML, /href="tel:952-767-3163"/);
+  });
+
+  it('renders limited red light mask guidance on day 7', async () => {
+    const { renderToday } = await import('../js/ui/today.js');
+    const root = { innerHTML: '' };
+    const targets = buildDailyTargets(7, 2);
+
+    renderToday(root, {
+      todayIso: '2026-07-03',
+      recoveryDay: 7,
+      stage: getStageForDay(7),
+      timeline: getTimelineForDay(7),
+      targets,
+      state: {
+        am: { cleanse: false, hocl: false, alastin: false, cicalfate: false, spf: false },
+        pm: { cleanse: false, hocl: false, alastin: false, cicalfate: false },
+        counters: { hocl: 0, cicalfate: 0, spf: 0, acyclovir: 0, heliocare: 0 },
+        flags: { elevated: false, coldCompress: false }
+      },
+      guidance: getDefaultGuidance(),
+      provenance: 'Default guidance',
+      assessment: null
+    });
+
+    assert.match(root.innerHTML, /Recovery tools/);
+    assert.match(root.innerHTML, /Restart at 5 minutes/);
+    assert.match(root.innerHTML, /clean mask/);
   });
 
   it('disables preparing a second same-day check-in after upload success', () => {

@@ -106,6 +106,50 @@ export const RECOVERY_CONTENT = {
       { id: 'alastin', label: 'Alastin Skin Nectar', details: 'Apply a thin layer.' },
       { id: 'cicalfate', label: 'Cicalfate+', details: 'Apply occlusive layer.' }
     ]
+  },
+  recoveryTools: {
+    redLightMask: {
+      label: 'Red light mask',
+      restartDay: 7,
+      routineDay: 14,
+      phases: {
+        wait: {
+          status: 'wait',
+          title: 'Wait on red light mask',
+          details: 'Pause at-home red light while skin is still reactive. Restart target: day 7 if skin is cool, intact, and not stinging.',
+          reviewAfter: 'day_7'
+        },
+        limited: {
+          status: 'limited',
+          title: 'Restart at 5 minutes',
+          details: 'Use a clean mask for 5 minutes only on clean, dry skin. Stop for heat, stinging, flushing, or next-day redness rebound.',
+          reviewAfter: 'day_14'
+        },
+        ready: {
+          status: 'ready',
+          title: 'Resume 10 minutes',
+          details: 'Resume the normal 10-minute mask only if fully calm, peeled, and not stinging. Keep skipping it during any heat or irritation.',
+          reviewAfter: 'as_needed'
+        }
+      },
+      guide: [
+        {
+          status: 'wait',
+          title: 'Days 0-6: wait',
+          details: 'Pause the mask while the barrier is hot, tight, peeling, or reactive.'
+        },
+        {
+          status: 'limited',
+          title: 'Day 7: restart at 5 minutes',
+          details: 'Try a clean mask for 5 minutes only if skin is cool, intact, and not stinging.'
+        },
+        {
+          status: 'ready',
+          title: 'Day 14+: resume 10 minutes',
+          details: 'Return to the normal session length only when the skin is fully calm.'
+        }
+      ]
+    }
   }
 };
 

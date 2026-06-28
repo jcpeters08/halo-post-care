@@ -1,8 +1,10 @@
 import { getCompletionSummary } from '../checklist.js';
+import { getRedLightMaskGuidance } from '../day.js';
 import {
   escapeHtml,
   renderAssessmentDetails,
   renderGuidanceCards,
+  renderRecoveryTools,
   renderSafetyPanel
 } from './components.js';
 
@@ -137,6 +139,8 @@ function renderCodexSafetyAlert(assessment) {
 
 export function renderToday(root, context) {
   const summary = getCompletionSummary(context.state, context.targets);
+  const redLightMaskGuidance = context.redLightMaskGuidance
+    ?? getRedLightMaskGuidance(context.recoveryDay);
 
   root.innerHTML = `
     <div class="stack-lg">
@@ -156,6 +160,7 @@ export function renderToday(root, context) {
       ${renderRoutine('pm', context.targets.pm, context.state.pm, summary.pm)}
       ${renderCounters(context.targets.counters, context.state.counters)}
       ${renderFlags(context.targets.flags, context.state.flags)}
+      ${renderRecoveryTools([redLightMaskGuidance])}
       ${renderCodexSafetyAlert(context.assessment)}
       ${renderAssessmentDetails(context.assessment)}
       ${renderSafetyPanel()}

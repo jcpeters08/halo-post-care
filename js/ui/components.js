@@ -15,6 +15,7 @@ export function statusClass(status) {
     ok: 'is-ok',
     expected: 'is-ok',
     routine: 'is-ok',
+    ready: 'is-ok',
     limited: 'is-limited',
     monitor: 'is-watch',
     watch: 'is-watch',
@@ -141,6 +142,46 @@ export function renderGuidanceCards(guidance, provenance) {
       </div>
       <div class="guidance-grid">${cards}</div>
       <p class="meta-text">Provenance: ${escapeHtml(provenance)}</p>
+    </section>
+  `;
+}
+
+export function renderRecoveryTools(tools = []) {
+  const cards = tools
+    .filter((entry) => entry && typeof entry === 'object')
+    .map(
+      (entry) => {
+        const status = entry.status || 'watch';
+        const review = entry.reviewAfter
+          ? `<p class="meta-text">Review: ${escapeHtml(entry.reviewAfter.replaceAll('_', ' '))}</p>`
+          : '';
+
+        return `
+          <article class="guidance-card ${statusClass(status)}">
+            <div class="guidance-card__header">
+              <p class="status-pill ${statusClass(status)}">${escapeHtml(status.replaceAll('_', ' '))}</p>
+              <h3>${escapeHtml(entry.label || 'Recovery tool')}</h3>
+            </div>
+            <p><strong>${escapeHtml(entry.title || 'Check before restarting')}</strong></p>
+            <p>${escapeHtml(entry.details || '')}</p>
+            ${review}
+          </article>
+        `;
+      }
+    )
+    .join('');
+
+  if (!cards) {
+    return '';
+  }
+
+  return `
+    <section class="panel stack-md" aria-labelledby="recovery-tools-title">
+      <div class="stack-xs">
+        <p class="section-label">Recovery tools</p>
+        <h2 id="recovery-tools-title" class="section-title">What to restart later</h2>
+      </div>
+      <div class="guidance-grid">${cards}</div>
     </section>
   `;
 }

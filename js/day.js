@@ -55,3 +55,18 @@ export function buildDailyTargets(recoveryDay, acyclovirPerDay = 2) {
     }
   };
 }
+
+export function getRedLightMaskGuidance(recoveryDay) {
+  const day = Number.isFinite(Number(recoveryDay)) ? Math.trunc(Number(recoveryDay)) : 0;
+  const config = RECOVERY_CONTENT.recoveryTools.redLightMask;
+
+  if (day < config.restartDay) {
+    return { label: config.label, ...config.phases.wait };
+  }
+
+  if (day < config.routineDay) {
+    return { label: config.label, ...config.phases.limited };
+  }
+
+  return { label: config.label, ...config.phases.ready };
+}

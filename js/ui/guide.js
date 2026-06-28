@@ -1,5 +1,5 @@
 import { CLINIC_CONTACTS, RECOVERY_CONTENT, SAFETY_TRIGGERS } from '../data.js';
-import { escapeHtml } from './components.js';
+import { escapeHtml, statusClass } from './components.js';
 
 const REINTRODUCTION_LADDER = [
   'Stay with cleanser, barrier support, and mineral SPF until skin is peeled and calm.',
@@ -39,6 +39,21 @@ function renderStandingRules() {
       <article class="rule-row">
         <h3>${escapeHtml(rule.title)}</h3>
         <p>${escapeHtml(rule.details)}</p>
+      </article>
+    `)
+    .join('');
+}
+
+function renderRedLightMaskGuide() {
+  const tool = RECOVERY_CONTENT.recoveryTools.redLightMask;
+  return tool.guide
+    .map((entry) => `
+      <article class="rule-row">
+        <div class="guidance-card__header">
+          <p class="status-pill ${statusClass(entry.status)}">${escapeHtml(entry.status.replaceAll('_', ' '))}</p>
+          <h3>${escapeHtml(entry.title)}</h3>
+        </div>
+        <p>${escapeHtml(entry.details)}</p>
       </article>
     `)
     .join('');
@@ -91,6 +106,14 @@ export function renderGuide(root, context) {
           <h2 class="section-title">Keep these constant</h2>
         </div>
         <div class="stack-sm">${renderStandingRules()}</div>
+      </section>
+
+      <section class="panel stack-md">
+        <div class="stack-xs">
+          <p class="section-label">Recovery tools</p>
+          <h2 class="section-title">Restart red light mask</h2>
+        </div>
+        <div class="stack-sm">${renderRedLightMaskGuide()}</div>
       </section>
 
       <section class="panel stack-md">

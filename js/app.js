@@ -20,6 +20,7 @@ import {
   buildDailyTargets,
   computeRecoveryDay,
   formatLocalIsoDate,
+  getRedLightMaskGuidance,
   getStageForDay,
   getTimelineForDay
 } from './day.js';
@@ -818,6 +819,7 @@ function buildContext() {
     guidance,
     procedureDate: settings.procedureDate,
     provenance,
+    redLightMaskGuidance: getRedLightMaskGuidance(recoveryDay),
     recoveryDay,
     settings,
     stage: getStageForDay(recoveryDay),

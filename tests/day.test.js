@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildDailyTargets,
   computeRecoveryDay,
+  getRedLightMaskGuidance,
   getStageForDay,
   getTimelineForDay
 } from '../js/day.js';
@@ -38,5 +39,29 @@ describe('recovery day math', () => {
     assert.equal(buildDailyTargets(1, 2).counters.hocl.target, 3);
     assert.equal(buildDailyTargets(4, 2).counters.hocl.target, 0);
     assert.equal(buildDailyTargets(4, 2).flags.coldCompress.default, false);
+  });
+
+  it('keeps red light mask paused until day 7', () => {
+    const guidance = getRedLightMaskGuidance(2);
+
+    assert.equal(guidance.status, 'wait');
+    assert.equal(guidance.title, 'Wait on red light mask');
+    assert.match(guidance.details, /Restart target: day 7/);
+  });
+
+  it('allows a limited red light mask restart on day 7', () => {
+    const guidance = getRedLightMaskGuidance(7);
+
+    assert.equal(guidance.status, 'limited');
+    assert.equal(guidance.title, 'Restart at 5 minutes');
+    assert.match(guidance.details, /clean mask/);
+  });
+
+  it('returns red light mask to routine after day 14', () => {
+    const guidance = getRedLightMaskGuidance(14);
+
+    assert.equal(guidance.status, 'ready');
+    assert.equal(guidance.title, 'Resume 10 minutes');
+    assert.match(guidance.details, /fully calm/);
   });
 });
