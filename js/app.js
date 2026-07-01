@@ -53,9 +53,12 @@ import { renderToday } from './ui/today.js';
 const routes = ['today', 'log', 'assessments', 'progress', 'guide', 'settings'];
 const DAILY_STATE_KEY = 'halo_daily_v1';
 const APPLIED_ASSESSMENT_KEY = 'halo_applied_assessment_v1';
+const AUTO_ASSESSMENT_SYNC_KEY = 'halo_auto_assessment_sync_v1';
 const CHECKIN_DRAFTS_KEY = 'halo_checkin_drafts_v1';
 const DAILY_CLAIM_FILE = 'daily-claim.json';
 const PHOTO_DB_NAME = 'halo-post-care-db';
+const AUTO_ASSESSMENT_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const ASSESSMENT_AUTO_SYNC_ROUTES = new Set(['today', 'assessments']);
 const DEFAULT_SYMPTOMS = {
   redness: 1,
   swelling: 1,
@@ -66,6 +69,7 @@ const DEFAULT_SYMPTOMS = {
 
 let activeLogRenderToken = 0;
 let activeLogPreviewUrls = [];
+let activeAssessmentSyncToken = 0;
 let activeProgressRenderToken = 0;
 let progressUiState = {
   selectedArea: 'face',
@@ -380,6 +384,47 @@ async function syncLatestAssessment(settings) {
   });
 
   return latestAssessment;
+}
+
+function hasGitHubSyncSettings(settings) {
+  return Boolean(settings?.githubOwner && settings?.dataRepo && settings?.token);
+}
+
+export function shouldAutoSyncAssessment({
+  settings,
+  assessment,
+  todayIso,
+  lastAttemptedAt,
+  nowMs = Date.now(),
+  minIntervalMs = AUTO_ASSESSMENT_SYNC_INTERVAL_MS
+}) {
+  if (!hasGitHubSyncSettings(settings) || typeof todayIso !== 'string' || !todayIso) {
+    return false;
+  }
+
+  if (typeof assessment?.assessmentDate === 'string' && assessment.assessmentDate >= todayIso) {
+    return false;
+  }
+
+  const lastAttemptMs = Date.parse(lastAttemptedAt || '');
+  if (Number.isFinite(lastAttemptMs) && nowMs - lastAttemptMs >= 0 && nowMs - lastAttemptMs < minIntervalMs) {
+    return false;
+  }
+
+  return true;
+}
+
+function getLastAutoAssessmentSyncAttempt(storage, todayIso) {
+  const state = loadJson(storage, AUTO_ASSESSMENT_SYNC_KEY, null);
+  if (!isPlainObject(state) || state.todayIso !== todayIso || typeof state.lastAttemptedAt !== 'string') {
+    return '';
+  }
+
+  return state.lastAttemptedAt;
+}
+
+function saveAutoAssessmentSyncAttempt(storage, todayIso, lastAttemptedAt) {
+  saveJson(storage, AUTO_ASSESSMENT_SYNC_KEY, { todayIso, lastAttemptedAt });
 }
 
 function describeSyncState(draft) {
@@ -924,10 +969,6 @@ function renderSettingsRoute(root, context) {
   });
 }
 
-function hasGitHubProgressSettings(settings) {
-  return Boolean(settings?.githubOwner && settings?.dataRepo && settings?.token);
-}
-
 async function loadProgressEntries(settings) {
   const client = createGitHubClient(settings);
   const checkinPaths = await client.findCompletedCheckins();
@@ -962,7 +1003,7 @@ async function loadProgressEntries(settings) {
 async function renderProgressRoute(root, context) {
   const renderToken = ++activeProgressRenderToken;
 
-  if (!hasGitHubProgressSettings(context.settings)) {
+  if (!hasGitHubSyncSettings(context.settings)) {
     progressUiState = {
       ...progressUiState,
       status: 'missing_settings',
@@ -1010,6 +1051,45 @@ async function renderProgressRoute(root, context) {
   }
 }
 
+async function maybeAutoSyncAssessment(route, context) {
+  if (!ASSESSMENT_AUTO_SYNC_ROUTES.has(route)) {
+    return;
+  }
+
+  const lastAttemptedAt = getLastAutoAssessmentSyncAttempt(window.localStorage, context.todayIso);
+  if (!shouldAutoSyncAssessment({
+    settings: context.settings,
+    assessment: context.assessment,
+    todayIso: context.todayIso,
+    lastAttemptedAt
+  })) {
+    return;
+  }
+
+  const syncToken = ++activeAssessmentSyncToken;
+  saveAutoAssessmentSyncAttempt(window.localStorage, context.todayIso, new Date().toISOString());
+  updateSyncStatusText('Checking Codex assessments...');
+
+  try {
+    const assessment = await syncLatestAssessment(context.settings);
+    if (syncToken !== activeAssessmentSyncToken || getRoute() !== route) {
+      return;
+    }
+
+    render(route);
+    updateSyncStatusText(`Synced Codex assessments through ${assessment.assessmentDate}.`);
+  } catch (error) {
+    if (syncToken !== activeAssessmentSyncToken || getRoute() !== route) {
+      return;
+    }
+
+    const message = error instanceof GitHubSettingsError
+      ? 'GitHub settings needed for Codex assessment sync.'
+      : 'Codex assessment sync failed.';
+    updateSyncStatusText(message);
+  }
+}
+
 function render(route = getRoute()) {
   const root = document.querySelector('#app');
   const title = document.querySelector('#screen-title');
@@ -1030,6 +1110,7 @@ function render(route = getRoute()) {
     revokeLogPreviewUrls();
     renderToday(root, context);
     updateSyncStatusText('Ready');
+    void maybeAutoSyncAssessment(route, context);
   } else if (route === 'log') {
     activeProgressRenderToken += 1;
     void renderLogRoute(root, context);
@@ -1038,6 +1119,7 @@ function render(route = getRoute()) {
     revokeLogPreviewUrls();
     renderAssessments(root, context);
     updateSyncStatusText('Ready');
+    void maybeAutoSyncAssessment(route, context);
   } else if (route === 'progress') {
     revokeLogPreviewUrls();
     void renderProgressRoute(root, context);

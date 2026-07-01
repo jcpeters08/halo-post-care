@@ -826,6 +826,32 @@ describe('Task 7 storage hardening', () => {
     assert.deepEqual(history.map((entry) => entry.assessmentDate), ['2026-06-29', '2026-06-27']);
   });
 
+  it('auto-syncs assessments when Today has an older cached Codex read', async () => {
+    const { shouldAutoSyncAssessment } = await import('../js/app.js');
+
+    const shouldSync = shouldAutoSyncAssessment({
+      settings: {
+        githubOwner: 'jcpeters08',
+        dataRepo: 'halo-post-care-data',
+        token: 'test-token'
+      },
+      assessment: {
+        schemaVersion: 1,
+        assessmentDate: '2026-06-28',
+        checkinPath: 'checkins/2026-06-28/1124',
+        overall: { status: 'on_track', confidence: 'medium', summary: 'On track.' },
+        guidance: getDefaultGuidance(),
+        safety: { callClinic: false, urgency: 'routine' },
+        nextActions: []
+      },
+      todayIso: '2026-06-30',
+      lastAttemptedAt: '',
+      nowMs: Date.UTC(2026, 5, 30, 14, 0, 0)
+    });
+
+    assert.equal(shouldSync, true);
+  });
+
   it('ignores malformed cached assessments and falls back to null', () => {
     const storage = createStorage({
       halo_applied_assessment_v1: {
